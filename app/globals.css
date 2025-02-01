@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Source Code Pro';
+  src: url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&display=swap');
+}
+
+:root {
+  --matrix-green: #00ff41;
+  --matrix-dark-green: #003b00;
+  --terminal-black: #0c0c0c;
+  --glow: 0 0 10px var(--matrix-green);
+}
+
+body {
+  background-color: var(--terminal-black);
+  font-family: 'Source Code Pro', monospace;
+  color: var(--matrix-green);
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Matrix Rain Effect - Adjusted Opacity */
+.matrix-rain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+.terminal-window {
+  background-color: rgba(12, 12, 12, 0.95);
+  border: 1px solid var(--matrix-green);
+  box-shadow: var(--glow);
+  backdrop-filter: blur(5px);
+}
+
+/* Topics Dropdown */
+.topics-dropdown {
+  background: rgba(12, 12, 12, 0.95);
+  border: 1px solid var(--matrix-green);
+  border-radius: 4px;
+  padding: 0.5rem;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.topics-dropdown:hover {
+  box-shadow: var(--glow);
+}
+
+.topics-list {
+  margin-top: 0.5rem;
+  border-left: 2px solid var(--matrix-green);
+  padding-left: 1rem;
+}
+
+.topic-item {
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.topic-item:hover {
+  background: rgba(0, 255, 65, 0.1);
+  text-shadow: var(--glow);
+}
+
+/* Header Layout */
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem 0;
+}
+
+.terminal-prompt::before {
+  content: "$ ";
+  color: var(--matrix-green);
+}
+
+.terminal-input {
+  background: transparent;
+  border: none;
+  color: var(--matrix-green);
+  font-family: 'Source Code Pro', monospace;
+  caret-color: var(--matrix-green);
+  text-shadow: var(--glow);
+}
+
+.terminal-input:focus {
+  outline: none;
+}
+
+.terminal-output {
+  color: var(--matrix-green);
+  opacity: 0.8;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--terminal-black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--matrix-green);
+  border-radius: 4px;
+}
+
+/* Terminal Commands */
+.command-list {
+  border-left: 1px solid var(--matrix-green);
+  padding-left: 1rem;
+}
+
+.command-item {
+  margin: 0.5rem 0;
+  cursor: pointer;
+}
+
+.command-item:hover {
+  text-shadow: var(--glow);
+}
+
+/* Wallet Connection */
+.wallet-status {
+  border: 1px solid var(--matrix-green);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  text-shadow: var(--glow);
+}
+
+/* Posts and Comments */
+.post-container {
+  border: 1px solid var(--matrix-dark-green);
+  background: rgba(0, 59, 0, 0.1);
+  margin: 1rem 0;
+  padding: 1rem;
+}
+
+.post-header {
+  border-bottom: 1px solid var(--matrix-dark-green);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Notifications */
+.notification {
+  border-left: 2px solid var(--matrix-green);
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
