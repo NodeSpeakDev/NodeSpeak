@@ -1,48 +1,120 @@
 "use client"
 
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
 
-const topics = [
-  { id: 1, name: 'Async Patterns in Node.js', category: 'Development' },
-  { id: 2, name: 'Web3 Integration Best Practices', category: 'Blockchain' },
-  { id: 3, name: 'Security in Smart Contracts', category: 'Security' },
-  { id: 4, name: 'DeFi Protocol Design', category: 'Blockchain' },
-  { id: 5, name: 'Node.js Performance Optimization', category: 'Development' },
-];
+interface Topic {
+    id: number;
+    name: string;
+}
 
 export const TopicsDropdown = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState('Select a Topic');
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedTopic, setSelectedTopic] = useState('Select a Topic');
+    const [topics, setTopics] = useState<Topic[]>([
+        { id: 1, name: 'Async Patterns in Node.js' },
+        { id: 2, name: 'Web3 Integration Best Practices' },
+        { id: 3, name: 'Security in Smart Contracts' },
+        { id: 4, name: 'DeFi Protocol Design' },
+        { id: 5, name: 'Node.js Performance Optimization' },
+    ]);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleTopicSelect = (topicName: string) => {
-    setSelectedTopic(topicName);
-    setIsOpen(false);
-  };
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
 
-  return (
-    <div className="relative">
-      <div 
-        className="topics-dropdown flex justify-between items-center"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <span>{selectedTopic}</span>
-        {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-      </div>
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
-      {isOpen && (
-        <div className="topics-list absolute w-full mt-2 bg-[var(--terminal-black)] border border-[var(--matrix-green)] rounded-lg overflow-hidden z-20">
-          {topics.map((topic) => (
-            <div
-              key={topic.id}
-              className="topic-item"
-              onClick={() => handleTopicSelect(topic.name)}
+    const filteredTopics = topics.filter(topic =>
+        topic.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const handleTopicSelect = (topicName: string) => {
+        setSelectedTopic(topicName);
+        setIsOpen(false);
+        setSearchTerm('');
+    };
+
+    const handleCreateNewTopic = (newTopicName: string) => {
+        // Verificar si el nombre ya existe (case insensitive)
+        const topicExists = topics.some(
+            topic => topic.name.toLowerCase() === newTopicName.toLowerCase()
+        );
+
+        if (topicExists) {
+            alert('This topic already exists');
+            return;
+        }
+
+        const newTopicObj = {
+            id: topics.length + 1,
+            name: newTopicName
+        };
+
+        setTopics(prev => [...prev, newTopicObj]);
+        setSelectedTopic(newTopicName);
+        setIsOpen(false);
+        setSearchTerm('');
+    };
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <div 
+                className="topics-dropdown flex justify-between items-center cursor-pointer p-2 border border-[var(--matrix-green)] rounded-lg"
+                onClick={() => setIsOpen(!isOpen)}
             >
-              <span className="opacity-70">[{topic.category}]</span> {topic.name}
+                <span>{selectedTopic}</span>
+                {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </div>
-          ))}
+
+            {isOpen && (
+                <div className="topics-list absolute w-full mt-2 bg-[var(--terminal-black)] border border-[var(--matrix-green)] rounded-lg overflow-hidden z-20">
+                    {/* Barra de búsqueda */}
+                    <div className="p-2 border-b border-[var(--matrix-green)]">
+                        <div className="flex items-center bg-[var(--terminal-black)] rounded-md p-2">
+                            <Search size={16} className="text-[var(--matrix-green)]" />
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Search or create topic..."
+                                className="bg-transparent border-none outline-none ml-2 w-full text-[var(--matrix-green)]"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Lista de tópicos filtrados */}
+                    <div className="max-h-60 overflow-y-auto">
+                        {filteredTopics.map((topic) => (
+                            <div
+                                key={topic.id}
+                                className="topic-item p-2 hover:bg-[var(--matrix-dark-green)] cursor-pointer"
+                                onClick={() => handleTopicSelect(topic.name)}
+                            >
+                                {topic.name}
+                            </div>
+                        ))}
+
+                        {/* Opción para crear nuevo tópico */}
+                        {searchTerm && !filteredTopics.length && (
+                            <div 
+                                className="p-2 hover:bg-[var(--matrix-dark-green)] cursor-pointer flex items-center"
+                                onClick={() => handleCreateNewTopic(searchTerm)}
+                            >
+                                <Plus size={16} className="mr-2" />
+                                Create "{searchTerm}"
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 }

@@ -90,7 +90,7 @@ export const CreatePost = ({ onSubmit }: CreatePostProps) => {
 
     return (
         <div className="border-l-2 border-[var(--matrix-green)] pl-3 mb-4">
-            <TopicsDropdown />
+            <TopicsDropdown  />
 
             <div className="terminal-window p-4 rounded-lg">
                 <div className="terminal-prompt flex items-center mt-2">
