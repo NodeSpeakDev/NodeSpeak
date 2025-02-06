@@ -14,8 +14,8 @@ interface WalletContextProps {
 const WalletContext = createContext<WalletContextProps>({
     isConnected: false,
     address: null,
-    connect: async () => { },
-    disconnect: () => { },
+    connect: async () => {},
+    disconnect: () => {},
     provider: null,
 });
 
@@ -24,18 +24,20 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [provider, setProvider] = useState<BrowserProvider | null>(null);
 
     const connect = async () => {
-        if (typeof window === "undefined") return;
-
-        let selectedProvider = window.ethereum;
-
-        // 🚨 Si hay múltiples proveedores (Phantom, MetaMask, Brave)
-        if (window.ethereum?.providers) {
-            selectedProvider = window.ethereum.providers.find((prov) => prov.isMetaMask) || window.ethereum;
+        if (typeof window === "undefined" || !window.ethereum) {
+            alert("Por favor, instala MetaMask para conectar tu wallet.");
+            return;
         }
 
-        // Si después de todo no encontramos un proveedor válido
+        let selectedProvider = window.ethereum as EthereumProvider;
+
+        if (window.ethereum.providers) {
+            selectedProvider =
+                window.ethereum.providers.find((prov) => prov.isMetaMask) || selectedProvider;
+        }
+
         if (!selectedProvider) {
-            alert("Por favor, instala MetaMask para conectar tu wallet.");
+            alert("Por favor, instala MetaMask o habilita un proveedor compatible.");
             return;
         }
 
@@ -52,32 +54,17 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
     };
 
-
-    // Función para desconectar la wallet
-    const disconnect = async () => {
+    const disconnect = () => {
         console.log("Desconectando wallet...");
         setAddress(null);
         setProvider(null);
-
-        if (window.ethereum) {
-            try {
-                await window.ethereum.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
-                console.log("Permisos revocados.");
-            } catch (error) {
-                console.warn("No se pudieron revocar los permisos, intenta manualmente en MetaMask.");
-            }
-        }
-
-        // Eliminar cualquier referencia guardada en sessionStorage
         sessionStorage.removeItem("wallet_connected");
-
         console.log("Wallet desconectada.");
     };
 
-
     useEffect(() => {
         if (provider && window.ethereum) {
-            window.ethereum.on("accountsChanged", (accounts: string[]) => {
+            window.ethereum.on?.("accountsChanged", (accounts: string[]) => {
                 if (accounts.length === 0) {
                     setAddress(null);
                 } else {
@@ -93,7 +80,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 isConnected: !!address,
                 address,
                 connect,
-                disconnect,  // Agregamos la función de desconectar
+                disconnect,
                 provider,
             }}
         >
