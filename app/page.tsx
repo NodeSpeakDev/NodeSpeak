@@ -118,7 +118,7 @@ export default function Home() {
             <div className="container mx-auto p-4 relative z-10">
                 <header className="mb-8">
                     <div className="flex justify-between items-start">
-                        <h1 className="text-2xl font-mono">Node Speak Terminal v1.0</h1>
+                        <h1 className="text-2xl font-mono">Node Speak Terminal v1.1</h1>
                         <div className="flex flex-col items-end space-y-2">
                             <WalletConnect />
                             <SystemStatus />
