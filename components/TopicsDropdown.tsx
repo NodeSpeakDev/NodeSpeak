@@ -8,7 +8,10 @@ interface Topic {
     name: string;
 }
 
-export const TopicsDropdown = () => {
+export const TopicsDropdown = ({ onTopicSelect }: { onTopicSelect: (topic: string) => void }) => {
+    // const handleTopicSelect = (topicName: string) => {
+    //     onTopicSelect(topicName); // Pasar el tópico seleccionado
+    // };  
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedTopic, setSelectedTopic] = useState('Select a Topic');
@@ -37,6 +40,7 @@ export const TopicsDropdown = () => {
     );
 
     const handleTopicSelect = (topicName: string) => {
+        onTopicSelect(topicName);
         setSelectedTopic(topicName);
         setIsOpen(false);
         setSearchTerm('');

@@ -1,17 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useWalletContext } from "@/contexts/WalletContext";
-import { ethers, Contract } from "ethers";
-import { forumAddress, forumABI } from "@/contracts/DecentralizedForum";
-
-const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
 
 interface Post {
     id: string;
     content: string;
     imageUrl?: string;
     timestamp?: number;
+    topic: string;
 }
 
 interface UserPostsProps {
@@ -20,7 +17,7 @@ interface UserPostsProps {
 }
 
 export const UserPosts = ({ fetchPostsFromContract, posts }: UserPostsProps) => {
-    const { isConnected, provider } = useWalletContext();
+    const { isConnected } = useWalletContext();
 
     useEffect(() => {
         if (isConnected) {
@@ -29,27 +26,41 @@ export const UserPosts = ({ fetchPostsFromContract, posts }: UserPostsProps) => 
     }, [isConnected]);
 
     return (
-        <div className="terminal-window p-2 rounded-lg">
-            <h2 className="text-sm font-mono mb-2">Your Latest Posts</h2>
+        <div className="terminal-window p-6 rounded-lg flex flex-col items-center">
+            <h2 className="text-xl font-mono mb-4 text-center text-[var(--matrix-green)]">
+                Latest Posts
+            </h2>
 
-            <div className="space-y-3">
+            <div className="space-y-6 w-full max-w-2xl">
                 {posts.map((post) => (
-                    <div key={post.id} className="border-l-2 border-[var(--matrix-green)] pl-3">
-                        <p className="text-xs opacity-80">{post.content}</p>
-
+                    <div
+                        key={post.id}
+                        className="border-2 border-[var(--matrix-green)] rounded-lg p-6 flex flex-col items-center bg-black shadow-lg"
+                    >
                         {post.imageUrl && (
                             <img
                                 src={post.imageUrl}
                                 alt="Post image"
-                                className="mt-2 max-h-32 rounded border border-[var(--matrix-green)]"
+                                className="w-full max-w-md rounded-md mb-4 border border-[var(--matrix-green)]"
                                 onError={(e) => {
-                                    e.currentTarget.src = "/fallback-image.png";
+                                    // Fallback en caso de error al cargar la imagen
+                                    console.error(e);
                                 }}
                             />
                         )}
 
-                        <p className="text-[10px] opacity-60 mt-1">
-                            {post.timestamp ? new Date(post.timestamp).toLocaleString() : "No timestamp"}
+                        <p className="text-lg font-semibold text-center text-white mb-2">
+                            {post.content}
+                        </p>
+
+                        <p className="text-md text-[var(--matrix-green)] italic mb-2">
+                            {post.topic || "No topic"}
+                        </p>
+
+                        <p className="text-sm text-gray-400">
+                            {post.timestamp
+                                ? new Date(post.timestamp).toLocaleString()
+                                : "No timestamp"}
                         </p>
                     </div>
                 ))}
