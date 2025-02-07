@@ -6,7 +6,7 @@ import { SystemStatus } from '@/components/SystemStatus';
 import { UserPosts } from '@/components/UserPosts';
 import { CreatePost } from '@/components/CreatePost';
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ethers, Contract } from "ethers";
 import { useWalletContext } from "@/contexts/WalletContext";
 import axios from 'axios';
@@ -27,8 +27,14 @@ export default function Home() {
         topic: string;
     }
 
+    interface Topic {
+        id: number;
+        name: string;
+    }
+
     const [posts, setPosts] = useState<Post[]>([]);
     const [isCreating, setIsCreating] = useState(false);
+    const [topics, setTopics] = useState<Topic[]>([]);
 
     const fetchPostsFromContract = async () => {
         try {
@@ -39,10 +45,11 @@ export default function Home() {
 
             const contract = new Contract(forumAddress, forumABI, provider);
             const postsFromContract = await contract.getAllPosts();
+            const newTopics = new Set<string>(); // Guardamos los nombres sin duplicados
 
             const postsParsed = await Promise.all(
-                postsFromContract.map(async (post: any) => {
-                    const id = parseInt(post.id.toString(), 10); // Convertir id a número
+                postsFromContract.map(async (post: any, index: number) => {
+                    const id = parseInt(post.id.toString(), 10);
                     let content = "";
 
                     try {
@@ -53,6 +60,8 @@ export default function Home() {
                     }
 
                     const imageUrl = post.imageCID ? `${PINATA_GATEWAY}${post.imageCID}` : undefined;
+                    const topic = post.topic.trim();
+                    newTopics.add(topic); // Añadimos el nombre del tópico
 
                     return {
                         id,
@@ -66,14 +75,25 @@ export default function Home() {
                 })
             );
 
-            // Ordenar por ID de manera descendente
+            // Ordenamos los posts por id de forma descendente
             postsParsed.sort((a, b) => b.id - a.id);
-
             setPosts(postsParsed);
+
+            // Convertimos los nombres de topics en objetos { id, name }
+            setTopics((oldTopics) => {
+                const existingNames = new Set(oldTopics.map(t => t.name));
+                const updatedTopics = Array.from(newTopics)
+                    .filter(name => !existingNames.has(name)) // Evitamos duplicados
+                    .map((name, index) => ({ id: oldTopics.length + index, name }));
+
+                return [...oldTopics, ...updatedTopics];
+            });
+
         } catch (error) {
             console.error("Error fetching posts from contract:", error);
         }
     };
+
 
 
     const handleCreatePost = async (imageCID: string | null, textCID: string, topic: string) => {
@@ -128,7 +148,12 @@ export default function Home() {
                 {isConnected &&
                     <main className="space-y-6">
                         {isCreating ? (
-                            <CreatePost onSubmit={handleCreatePost} isCreating={isCreating} setIsCreating={setIsCreating} />
+                            <CreatePost
+                                onSubmit={handleCreatePost}
+                                isCreating={isCreating}
+                                setIsCreating={setIsCreating}
+                                topics={topics}
+                                setTopics={setTopics} />
                         ) : (
                             <Button onClick={() => setIsCreating(true)} className="text-xs mb-4 py-1 px-2 h-auto bg-transparent border border-[var(--matrix-green)] hover:bg-[var(--matrix-dark-green)]">
                                 Create Post

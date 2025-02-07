@@ -6,15 +6,19 @@ import { Button } from "@/components/ui/button";
 import { TopicsDropdown } from "@/components/TopicsDropdown";
 import axios from "axios";
 
-const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+interface Topic {
+    id: number;
+    name: string;
+}
 
 interface CreatePostProps {
     onSubmit: (imageCID: string | null, textCID: string, topicName: string) => Promise<void>;
     isCreating: boolean;
     setIsCreating: (value: boolean) => void;
+    topics: Topic[];
+    setTopics: (topics: Topic[]) => void; // ← Agregamos esta prop
 }
-
-export const CreatePost = ({ onSubmit, isCreating, setIsCreating }: CreatePostProps) => {
+export const CreatePost = ({ onSubmit, isCreating, setIsCreating, topics, setTopics }: CreatePostProps) => {
 
     const [newPost, setNewPost] = useState("");
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -98,7 +102,7 @@ export const CreatePost = ({ onSubmit, isCreating, setIsCreating }: CreatePostPr
         <div className="border-l-2 border-[var(--matrix-green)] pl-3 mb-4">
             {isCreating ? (
                 <>
-                    <TopicsDropdown onTopicSelect={handleTopicChange} />
+                    <TopicsDropdown onTopicSelect={handleTopicChange} topics={topics} setTopics={setTopics} />
                     <div className="terminal-window p-4 rounded-lg">
                         <div className="terminal-prompt flex items-center mt-2">
                             <input

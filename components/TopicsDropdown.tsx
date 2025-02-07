@@ -8,20 +8,15 @@ interface Topic {
     name: string;
 }
 
-export const TopicsDropdown = ({ onTopicSelect }: { onTopicSelect: (topic: string) => void }) => {
-    // const handleTopicSelect = (topicName: string) => {
-    //     onTopicSelect(topicName); // Pasar el tópico seleccionado
-    // };  
+export const TopicsDropdown = ({ onTopicSelect, topics, setTopics }: {
+    onTopicSelect: (topic: string) => void,
+    topics: Topic[],
+    setTopics: (topics: Topic[]) => void
+}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedTopic, setSelectedTopic] = useState('Select a Topic');
-    const [topics, setTopics] = useState<Topic[]>([
-        { id: 1, name: 'Async Patterns in Node.js' },
-        { id: 2, name: 'Web3 Integration Best Practices' },
-        { id: 3, name: 'Security in Smart Contracts' },
-        { id: 4, name: 'DeFi Protocol Design' },
-        { id: 5, name: 'Node.js Performance Optimization' },
-    ]);
+
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -62,7 +57,7 @@ export const TopicsDropdown = ({ onTopicSelect }: { onTopicSelect: (topic: strin
             name: newTopicName
         };
 
-        setTopics(prev => [...prev, newTopicObj]);
+        setTopics([...topics, newTopicObj]); 
         setSelectedTopic(newTopicName);
         setIsOpen(false);
         setSearchTerm('');
@@ -70,7 +65,7 @@ export const TopicsDropdown = ({ onTopicSelect }: { onTopicSelect: (topic: strin
 
     return (
         <div className="relative" ref={dropdownRef}>
-            <div 
+            <div
                 className="topics-dropdown flex justify-between items-center cursor-pointer p-2 border border-[var(--matrix-green)] rounded-lg"
                 onClick={() => setIsOpen(!isOpen)}
             >
@@ -108,7 +103,7 @@ export const TopicsDropdown = ({ onTopicSelect }: { onTopicSelect: (topic: strin
 
                         {/* Opción para crear nuevo tópico */}
                         {searchTerm && !filteredTopics.length && (
-                            <div 
+                            <div
                                 className="p-2 hover:bg-[var(--matrix-dark-green)] cursor-pointer flex items-center"
                                 onClick={() => handleCreateNewTopic(searchTerm)}
                             >
