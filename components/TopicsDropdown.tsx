@@ -59,6 +59,7 @@ export const TopicsDropdown = ({ onTopicSelect, topics, setTopics }: {
 
         setTopics([...topics, newTopicObj]); 
         setSelectedTopic(newTopicName);
+        onTopicSelect(newTopicName);
         setIsOpen(false);
         setSearchTerm('');
     };

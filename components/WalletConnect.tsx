@@ -32,7 +32,7 @@ export const WalletConnect = () => {
                         onClick={disconnect}
                         className="bg-red-500 text-white text-xs py-1 px-2 h-auto flex items-center space-x-1"
                     >
-                        <LogOut className="h-4 w-4" /> <span>Salir</span>
+                        <LogOut className="h-4 w-4" /> <span>Exit</span>
                     </Button>
                 </div>
             ) : (
