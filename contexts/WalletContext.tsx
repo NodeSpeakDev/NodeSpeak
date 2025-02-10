@@ -6,6 +6,7 @@ import { BrowserProvider } from "ethers";
 interface WalletContextProps {
     isConnected: boolean;
     address: string | null;
+    ensName: string | null; // Agregamos ENS
     connect: () => Promise<void>;
     disconnect: () => void;
     provider: BrowserProvider | null;
@@ -14,6 +15,7 @@ interface WalletContextProps {
 const WalletContext = createContext<WalletContextProps>({
     isConnected: false,
     address: null,
+    ensName: null, // Valor inicial para ENS
     connect: async () => {},
     disconnect: () => {},
     provider: null,
@@ -21,7 +23,19 @@ const WalletContext = createContext<WalletContextProps>({
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [address, setAddress] = useState<string | null>(null);
+    const [ensName, setEnsName] = useState<string | null>(null);
     const [provider, setProvider] = useState<BrowserProvider | null>(null);
+
+    // Nueva función para resolver ENS
+    const resolveEns = async (addr: string, prov: BrowserProvider) => {
+        try {
+            const name = await prov.lookupAddress(addr);
+            setEnsName(name);
+        } catch (error) {
+            console.warn("Error al resolver ENS:", error);
+            setEnsName(null);
+        }
+    };
 
     const connect = async () => {
         if (typeof window === "undefined" || !window.ethereum) {
@@ -49,6 +63,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
             const prov = new BrowserProvider(selectedProvider);
             setProvider(prov);
+
+            // Resolver ENS después de conectar
+            await resolveEns(accounts[0], prov);
         } catch (error) {
             console.error("Error al conectar la wallet:", error);
         }
@@ -58,17 +75,21 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log("Desconectando wallet...");
         setAddress(null);
         setProvider(null);
+        setEnsName(null); // Limpiar ENS al desconectar
         sessionStorage.removeItem("wallet_connected");
         console.log("Wallet desconectada.");
     };
 
     useEffect(() => {
         if (provider && window.ethereum) {
-            window.ethereum.on?.("accountsChanged", (accounts: string[]) => {
+            window.ethereum.on?.("accountsChanged", async (accounts: string[]) => {
                 if (accounts.length === 0) {
                     setAddress(null);
+                    setEnsName(null);
                 } else {
                     setAddress(accounts[0]);
+                    // Actualizar ENS cuando cambia la cuenta
+                    await resolveEns(accounts[0], provider);
                 }
             });
         }
@@ -79,6 +100,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             value={{
                 isConnected: !!address,
                 address,
+                ensName,
                 connect,
                 disconnect,
                 provider,
