@@ -6,7 +6,7 @@ import { useWalletContext } from "@/contexts/WalletContext";
 import { Check, LogOut } from "lucide-react";
 
 export const WalletConnect = () => {
-    const { isConnected, address, connect, disconnect } = useWalletContext();
+    const { isConnected, address, connect, disconnect, ensName } = useWalletContext();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleConnect = async () => {
@@ -25,9 +25,14 @@ export const WalletConnect = () => {
             {isConnected ? (
                 <div className="flex items-center space-x-2">
                     <Check className="h-3 w-3 text-[#00ff41]" />
-                    <span className="font-mono">
-                        {address?.slice(0, 6)}...{address?.slice(-4)}
-                    </span>
+                    <div>
+                        {ensName ? (
+                            <span>{ensName}</span>
+                        ) : (
+                            <span className="font-mono">
+                                {address?.slice(0, 6)}...{address?.slice(-4)}
+                            </span>)}
+                    </div>
                     <Button
                         onClick={disconnect}
                         className="bg-red-500 text-white text-xs py-1 px-2 h-auto flex items-center space-x-1"
