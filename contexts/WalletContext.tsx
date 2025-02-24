@@ -39,7 +39,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const connect = async () => {
         if (typeof window === "undefined" || !window.ethereum) {
-            alert("Por favor, instala MetaMask para conectar tu wallet.");
+            alert("Please install MetaMask, Trust or use other Web3 wallet");
             return;
         }
 
