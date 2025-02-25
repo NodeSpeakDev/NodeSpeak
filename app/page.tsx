@@ -1,172 +1,122 @@
 "use client";
-import { MatrixRain } from '@/components/MatrixRain';
-import { TerminalPrompt } from '@/components/TerminalPrompt';
+import React, { useState } from 'react';
+import { Github, Twitter, Terminal } from 'lucide-react';
+import { Mail } from "lucide-react";
+import { X } from "lucide-react";
 import { WalletConnect } from '@/components/WalletConnect';
-import { SystemStatus } from '@/components/SystemStatus';
-import { UserPosts } from '@/components/UserPosts';
-import { CreatePost } from '@/components/CreatePost';
-import { Button } from "@/components/ui/button";
-import { useState, useEffect, useMemo } from "react";
-import { ethers, Contract } from "ethers";
+import Communities from '@/components/Communities';
 import { useWalletContext } from "@/contexts/WalletContext";
-import axios from 'axios';
-import { forumAddress, forumABI } from "@/contracts/DecentralizedForum";
 
 
-const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
-
-export default function Home() {
-    const { isConnected, provider } = useWalletContext();
-    interface Post {
-        id: string;
-        content: string;
-        timestamp: number;
-        address: string;
-        imageUrl?: string;
-        cid: string;
-        topic: string;
-    }
-
-    interface Topic {
-        id: number;
-        name: string;
-    }
-
-    const [posts, setPosts] = useState<Post[]>([]);
-    const [isCreating, setIsCreating] = useState(false);
-    const [topics, setTopics] = useState<Topic[]>([]);
-
-    const fetchPostsFromContract = async () => {
-        try {
-            if (!provider) {
-                console.error("No se encontró un proveedor en el contexto de wallet.");
-                return;
-            }
-
-            const contract = new Contract(forumAddress, forumABI, provider);
-            const postsFromContract = await contract.getAllPosts();
-            const newTopics = new Set<string>(); // Guardamos los nombres sin duplicados
-
-            const postsParsed = await Promise.all(
-                postsFromContract.map(async (post: any, index: number) => {
-                    const id = parseInt(post.id.toString(), 10);
-                    let content = "";
-
-                    try {
-                        const response = await axios.get(`${PINATA_GATEWAY}${post.contentCID}`);
-                        content = response.data;
-                    } catch (err) {
-                        console.error(`❌ Error al obtener contenido para post ${id}`, err);
-                    }
-
-                    const imageUrl = post.imageCID ? `${PINATA_GATEWAY}${post.imageCID}` : undefined;
-                    const topic = post.topic.trim();
-                    newTopics.add(topic); // Añadimos el nombre del tópico
-
-                    return {
-                        id,
-                        content,
-                        timestamp: Date.now(),
-                        address: post.author,
-                        imageUrl,
-                        cid: post.imageCID,
-                        topic: post.topic
-                    };
-                })
-            );
-
-            // Ordenamos los posts por id de forma descendente
-            postsParsed.sort((a, b) => b.id - a.id);
-            setPosts(postsParsed);
-
-            // Convertimos los nombres de topics en objetos { id, name }
-            setTopics((oldTopics) => {
-                const existingNames = new Set(oldTopics.map(t => t.name));
-                const updatedTopics = Array.from(newTopics)
-                    .filter(name => !existingNames.has(name)) // Evitamos duplicados
-                    .map((name, index) => ({ id: oldTopics.length + index, name }));
-
-                return [...oldTopics, ...updatedTopics];
-            });
-
-        } catch (error) {
-            console.error("Error fetching posts from contract:", error);
-        }
-    };
-
-
-
-    const handleCreatePost = async (imageCID: string | null, textCID: string, topic: string) => {
-        if (!provider) {
-            alert("No hay proveedor de Ethereum conectado.");
-            return;
-        }
-
-        console.log("topico", topic);
-
-        try {
-            const signer = await provider.getSigner();
-            const contract = new Contract(forumAddress, forumABI, signer);
-
-            const tx = await contract.createPost(
-                "Terminal v1",
-                textCID,
-                imageCID ?? "",
-                topic
-            );
-
-            await tx.wait();
-
-            fetchPostsFromContract();
-            setIsCreating(false); // Cierra el form después de confirmar la transacción
-        } catch (error) {
-            console.error("Error al enviar post al contrato:", error);
-            alert("Error al enviar el post. Revisa la consola.");
-        }
-    };
-
-
-    useEffect(() => {
-        if (isConnected) {
-            fetchPostsFromContract();
-        }
-    }, [isConnected]);
-
+function MatrixRain() {
     return (
-        <div className="min-h-screen relative">
-            <MatrixRain />
-            <div className="container mx-auto p-4 relative z-10">
-                <header className="mb-8">
-                    <div className="flex justify-between items-start">
-                        <h1 className="text-2xl font-mono">Node Speak v1.1</h1>
-                        <div className="flex flex-col items-end space-y-2">
-                            <WalletConnect />
-                            <SystemStatus />
-                        </div>
-                    </div>
-                </header>
-                {isConnected &&
-                    <main className="space-y-6">
-                        {isCreating ? (
-                            <CreatePost
-                                onSubmit={handleCreatePost}
-                                isCreating={isCreating}
-                                setIsCreating={setIsCreating}
-                                topics={topics}
-                                setTopics={setTopics} />
-                        ) : (
-                            <Button onClick={() => setIsCreating(true)} className="text-xs mb-4 py-1 px-2 h-auto bg-transparent border border-[var(--matrix-green)] hover:bg-[var(--matrix-dark-green)]">
-                                Create Post
-                            </Button>
-                        )}
-
-
-                        <div className="terminal-window">
-                            <UserPosts fetchPostsFromContract={fetchPostsFromContract} posts={posts} />
-                        </div>
-                    </main>}
-
-            </div>
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="matrix-rain absolute inset-0" aria-hidden="true" />
         </div>
     );
 }
+
+function TerminalPrompt({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="flex items-center space-x-2 font-mono">
+            <span className="text-green-500">user@nodespeak</span>
+            <span className="text-gray-500">:</span>
+            <span className="text-blue-400">~</span>
+            <span className="text-gray-500">$</span>
+            <span className="text-white">{children}</span>
+        </div>
+    );
+}
+
+function Landing() {
+    const { isConnected } = useWalletContext();
+    const [buttonText, setButtonText] = useState('./access_NodeSpeak');
+
+    return (
+        <div className="min-h-screen bg-black text-green-400 font-mono relative overflow-hidden">
+            <MatrixRain />
+
+            {/* Navigation */}
+            <nav className="absolute top-6 right-6 z-10">
+                <WalletConnect />
+            </nav>
+
+            <main className="container mx-auto px-6 relative z-10">
+                {isConnected ? (
+                    // Mostrar solo Communities cuando la wallet esté conectada
+                    <Communities />
+                ) : (
+                    // Mostrar el título y la terminal cuando la wallet NO esté conectada
+                    <>
+                        {/* Logo Section */}
+                        <div className="container mx-auto px-6 pt-16 pb-8 relative z-10">
+                            <div className="max-w-4xl mx-auto text-center">
+                                <h1 className="text-5xl font-bold">NodeSpeak</h1>
+                            </div>
+                        </div>
+
+                        {/* Terminal Window */}
+                        <div className="max-w-4xl mx-auto bg-black text-green-400 border border-green-500 rounded-md 
+                              shadow-[0_0_20px_rgba(0,255,0,0.3)] font-mono overflow-hidden">
+                            <div className="bg-black px-4 py-2 border-b border-green-500 flex items-center text-sm text-green-300">
+                                <span className="mr-2 text-green-500">➜</span>
+                                <span className="text-green-400">/home/user/nodespeak</span>
+                            </div>
+
+                            <div className="p-6 space-y-6">
+                                <p className="text-green-300">
+                                    <span className="text-green-500">user@nodespeak</span>:~$ <span className="animate-pulse">_</span>
+                                </p>
+                                <div className="space-y-4 pl-4">
+                                    <h1 className="text-2xl font-bold text-green-500 animate-pulse">
+                                        Welcome to NodeSpeak v1.1.0
+                                    </h1>
+                                    <p className="text-green-300 typing-effect">
+                                        Initializing decentralized communication protocol...
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </main>
+
+            {/* Footer */}
+            <footer className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-sm py-4 
+                       border-t border-green-500/30">
+                <div className="container mx-auto px-6 flex justify-center space-x-8">
+                    <a
+                        href="https://github.com/NodeSpeak/NodeSpeakv1.1-main"
+                        className="flex items-center space-x-2 text-green-400/80 hover:text-green-400 
+                     hover:shadow-[0_0_10px_rgba(34,197,94,0.3)] transition-all duration-300"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <Github className="w-5 h-5" />
+                        <span>nodespeak</span>
+                    </a>
+                    <a
+                        href="https://twitter.com/NodeSpeak_"
+                        className="flex items-center space-x-2 text-green-400/80 hover:text-green-400 
+             hover:shadow-[0_0_10px_rgba(34,197,94,0.3)] transition-all duration-300"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <X className="w-5 h-5" />
+                        <span>@NodeSpeak_</span>
+                    </a>
+                    <a
+                        href="mailto:support@nodespeak.xyz"
+                        className="flex items-center space-x-2 text-green-400/80 hover:text-green-400 
+             hover:shadow-[0_0_10px_rgba(34,197,94,0.3)] transition-all duration-300"
+                    >
+                        <Mail className="w-5 h-5" />
+                        <span>support</span>
+                    </a>
+                </div>
+            </footer>
+        </div>
+    );
+}
+
+export default Landing;
