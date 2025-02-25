@@ -1,12 +1,9 @@
 "use client";
-import React, { useState } from 'react';
-import { Github, Twitter, Terminal } from 'lucide-react';
-import { Mail } from "lucide-react";
-import { X } from "lucide-react";
-import { WalletConnect } from '@/components/WalletConnect';
-import Communities from '@/components/Communities';
+import React, { useState, useEffect } from "react";
+import { Github, X, Mail } from "lucide-react";
+import { WalletConnect } from "@/components/WalletConnect";
+import Communities from "@/components/Communities";
 import { useWalletContext } from "@/contexts/WalletContext";
-
 
 function MatrixRain() {
     return (
@@ -28,34 +25,59 @@ function TerminalPrompt({ children }: { children: React.ReactNode }) {
     );
 }
 
+function TypingEffect({ text }: { text: string }) {
+    const [displayedText, setDisplayedText] = useState("");
+
+    useEffect(() => {
+        let i = 0;
+        const interval = setInterval(() => {
+            if (i < text.length) {
+                setDisplayedText((prev) => prev + text.charAt(i));
+                i++;
+            } else {
+                clearInterval(interval);
+            }
+        }, 50);
+
+        return () => clearInterval(interval);
+    }, [text]);
+
+    return (
+        <span className="text-green-300 after:content-['_'] animate-blink">
+            {displayedText}
+        </span>
+    );
+}
+
+function MatrixTitle() {
+    return (
+        <h1 className="text-5xl font-bold text-green-500 animate-cyberpunk">NodeSpeak</h1>
+    );
+}
+
 function Landing() {
     const { isConnected } = useWalletContext();
-    const [buttonText, setButtonText] = useState('./access_NodeSpeak');
+    const [buttonText, setButtonText] = useState("./access_NodeSpeak");
 
     return (
         <div className="min-h-screen bg-black text-green-400 font-mono relative overflow-hidden">
             <MatrixRain />
 
-            {/* Navigation */}
             <nav className="absolute top-6 right-6 z-10">
                 <WalletConnect />
             </nav>
 
             <main className="container mx-auto px-6 relative z-10">
                 {isConnected ? (
-                    // Mostrar solo Communities cuando la wallet esté conectada
                     <Communities />
                 ) : (
-                    // Mostrar el título y la terminal cuando la wallet NO esté conectada
                     <>
-                        {/* Logo Section */}
                         <div className="container mx-auto px-6 pt-16 pb-8 relative z-10">
                             <div className="max-w-4xl mx-auto text-center">
-                                <h1 className="text-5xl font-bold">NodeSpeak</h1>
+                                <MatrixTitle />
                             </div>
                         </div>
 
-                        {/* Terminal Window */}
                         <div className="max-w-4xl mx-auto bg-black text-green-400 border border-green-500 rounded-md 
                               shadow-[0_0_20px_rgba(0,255,0,0.3)] font-mono overflow-hidden">
                             <div className="bg-black px-4 py-2 border-b border-green-500 flex items-center text-sm text-green-300">
@@ -65,14 +87,14 @@ function Landing() {
 
                             <div className="p-6 space-y-6">
                                 <p className="text-green-300">
-                                    <span className="text-green-500">user@nodespeak</span>:~$ <span className="animate-pulse">_</span>
+                                    <span className="text-green-500">user@nodespeak</span>:~$ NodeSpeak  <span className="animate-pulse">_</span>
                                 </p>
                                 <div className="space-y-4 pl-4">
-                                    <h1 className="text-2xl font-bold text-green-500 animate-pulse">
+                                    <h1 className="text-2xl font-bold text-green-500 animate-intense-pulse">
                                         Welcome to NodeSpeak v1.1.0
                                     </h1>
-                                    <p className="text-green-300 typing-effect">
-                                        Initializing decentralized communication protocol...
+                                    <p className="text-green-300">
+                                        <TypingEffect text="Initializing decentralized communication protocol..." />
                                     </p>
                                 </div>
                             </div>
@@ -81,7 +103,6 @@ function Landing() {
                 )}
             </main>
 
-            {/* Footer */}
             <footer className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-sm py-4 
                        border-t border-green-500/30">
                 <div className="container mx-auto px-6 flex justify-center space-x-8">
