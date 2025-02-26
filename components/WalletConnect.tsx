@@ -46,7 +46,7 @@ export const WalletConnect = () => {
                     disabled={isLoading}
                     className="bg-transparent border border-[#00ff41] text-[#00ff41] hover:bg-[#003b00] transition-colors text-xs py-1 h-auto"
                 >
-                    {isLoading ? "Connecting..." : "Initialize Connection Protocol"}
+                    {isLoading ? "Connecting..." : "Connection"}
                 </Button>
             )}
         </div>
