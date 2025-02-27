@@ -14,13 +14,13 @@ interface Post {
     imageUrl?: string;
     timestamp?: number;
     topic: string;
-    // Hacemos opcionales las nuevas propiedades
+    // Optional properties
     title?: string;
     communityId?: string;
     author?: string;
     likeCount?: number;
     commentCount?: number;
-  }
+}
 
 interface UserPostsProps {
     fetchPostsFromContract: () => void;
@@ -31,8 +31,9 @@ interface UserPostsProps {
 export const UserPosts = ({ fetchPostsFromContract, posts, communities = [] }: UserPostsProps) => {
     const { isConnected } = useWalletContext();
     const [expandedPost, setExpandedPost] = useState<string | null>(null);
+    const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
-    // Crear un mapa de comunidades para búsqueda rápida
+    // Create a community map for fast lookup
     const communityMap = communities.reduce((map, community) => {
         map[community.id] = community;
         return map;
@@ -40,9 +41,10 @@ export const UserPosts = ({ fetchPostsFromContract, posts, communities = [] }: U
 
     useEffect(() => {
         if (isConnected) {
+            // Call fetchPostsFromContract only when component mounts or when isConnected changes
             fetchPostsFromContract();
         }
-    }, [isConnected, fetchPostsFromContract]);
+    }, [isConnected]); // Remove fetchPostsFromContract from dependencies to prevent loops
 
     const toggleExpandPost = (postId: string) => {
         if (expandedPost === postId) {
@@ -52,16 +54,24 @@ export const UserPosts = ({ fetchPostsFromContract, posts, communities = [] }: U
         }
     };
 
-    // Función para formatear la fecha
+    // Function to format date
     const formatDate = (timestamp: number) => {
         return new Date(timestamp * 1000).toLocaleString();
     };
 
-    // Función para truncar texto largo
+    // Function to truncate long text
     const truncateText = (text: string, maxLength: number) => {
-// sourcery skip: use-braces
-        if (text.length <= maxLength) return text;
+        if (!text || text.length <= maxLength) return text || "";
         return text.substring(0, maxLength) + "...";
+    };
+
+    // Handle image error only once
+    const handleImageError = (imageUrl: string) => {
+        setFailedImages(prev => {
+            const newSet = new Set(prev);
+            newSet.add(imageUrl);
+            return newSet;
+        });
     };
 
     return (
@@ -76,13 +86,14 @@ export const UserPosts = ({ fetchPostsFromContract, posts, communities = [] }: U
                     posts.map((post) => {
                         const community = post.communityId ? communityMap[post.communityId] : undefined;
                         const isExpanded = expandedPost === post.id;
+                        const shouldShowImage = post.imageUrl && !failedImages.has(post.imageUrl);
 
                         return (
                             <div
                                 key={post.id}
                                 className="border-2 border-[var(--matrix-green)] rounded-lg p-6 flex flex-col items-center bg-black shadow-lg"
                             >
-                                {/* Información de la comunidad */}
+                                {/* Community information */}
                                 <div className="w-full flex justify-between items-center mb-3">
                                     <div className="flex items-center">
                                         <span className="text-[var(--matrix-green)] font-bold">
@@ -94,29 +105,30 @@ export const UserPosts = ({ fetchPostsFromContract, posts, communities = [] }: U
                                     </span>
                                 </div>
 
-                                {/* Título del post */}
-                                <h3 className="text-xl font-bold text-white mb-3 w-full text-left">
-                                    {post.title}
-                                </h3>
+                                {/* Post title */}
+                                {post.title && (
+                                    <h3 className="text-xl font-bold text-white mb-3 w-full text-left">
+                                        {post.title}
+                                    </h3>
+                                )}
 
-                                {/* Imagen del post */}
-                                {post.imageUrl && (
+                                {/* Post image - only show if not in failed images list */}
+                                {shouldShowImage && (
                                     <img
                                         src={post.imageUrl}
                                         alt="Post image"
                                         className="w-full max-w-md rounded-md mb-4 border border-[var(--matrix-green)]"
-                                        onError={(e) => {
-                                            console.error(e);
-                                        }}
+                                        onError={() => handleImageError(post.imageUrl!)}
+                                        loading="lazy"
                                     />
                                 )}
 
-                                {/* Contenido del post */}
+                                {/* Post content */}
                                 <p className="text-lg text-white mb-3 w-full text-left">
                                     {isExpanded ? post.content : truncateText(post.content, 150)}
                                 </p>
 
-                                {post.content.length > 150 && (
+                                {post.content && post.content.length > 150 && (
                                     <button
                                         className="text-[var(--matrix-green)] hover:underline mb-3 self-start"
                                         onClick={() => toggleExpandPost(post.id)}
@@ -125,14 +137,14 @@ export const UserPosts = ({ fetchPostsFromContract, posts, communities = [] }: U
                                     </button>
                                 )}
 
-                                {/* Pie del post con tópico, likes y comentarios */}
+                                {/* Post footer with topic, likes and comments */}
                                 <div className="w-full flex justify-between items-center mt-2">
                                     <span className="text-[var(--matrix-green)] italic">
-                                        #{post.topic}
+                                        #{post.topic || "General"}
                                     </span>
                                     <div className="flex space-x-4 text-gray-400">
-                                        <span>{post.likeCount} likes</span>
-                                        <span>{post.commentCount} comments</span>
+                                        <span>{post.likeCount || 0} likes</span>
+                                        <span>{post.commentCount || 0} comments</span>
                                     </div>
                                 </div>
                             </div>

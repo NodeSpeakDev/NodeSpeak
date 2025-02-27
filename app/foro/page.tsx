@@ -12,12 +12,19 @@ import { useWalletContext } from "@/contexts/WalletContext";
 import axios from 'axios';
 import { forumAddress, forumABI } from "@/contracts/DecentralizedForum_Commuties";
 
+// Use a cached IPFS gateway to reduce rate limiting issues
 const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+// Add a backup gateway
+const BACKUP_GATEWAY = "https://ipfs.io/ipfs/";
+
+// Cache for content and community data
+const contentCache = new Map();
+const communityDataCache = new Map();
 
 export default function Home() {
     const { isConnected, provider } = useWalletContext();
 
-    // Interfaces actualizadas
+    // Updated interfaces
     interface Post {
         id: string;
         title: string;
@@ -56,25 +63,56 @@ export default function Home() {
     const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
     const [isCreatingCommunity, setIsCreatingCommunity] = useState(false);
     const [showCommunityList, setShowCommunityList] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
 
-    // Obtener comunidades del contrato
-    const fetchCommunities = async () => {
+    // Helper function to fetch IPFS content with caching and fallback
+    const fetchFromIPFS = async (cid: any, useCache = true) => {
+        if (useCache && contentCache.has(cid)) {
+            return contentCache.get(cid);
+        }
+
         try {
+            // Try primary gateway
+            const response = await axios.get(`${PINATA_GATEWAY}${cid}`);
+            const data = response.data;
+            contentCache.set(cid, data);
+            return data;
+        } catch (error) {
+            try {
+                // Try backup gateway
+                const response = await axios.get(`${BACKUP_GATEWAY}${cid}`);
+                const data = response.data;
+                contentCache.set(cid, data);
+                return data;
+            } catch (backupError) {
+                console.error(`Error fetching from both gateways for CID ${cid}:`, backupError);
+                return null;
+            }
+        }
+    };
+
+    // Get communities from contract
+    const fetchCommunities = async () => {
+        if (isLoading) return;
+        
+        try {
+            setIsLoading(true);
+            
             if (!provider) {
-                console.error("No se encontró un proveedor en el contexto de wallet.");
+                console.error("No provider found in wallet context.");
                 return;
             }
 
             const contract = new Contract(forumAddress, forumABI, provider);
             const communitiesFromContract = await contract.getActiveCommunities();
 
-            // Obtener dirección del usuario actual
+            // Get current user address
             let userAddress = "";
             try {
                 const signer = await provider.getSigner();
                 userAddress = await signer.getAddress();
             } catch (err) {
-                console.error("Error al obtener la dirección del usuario:", err);
+                console.error("Error getting user address:", err);
             }
 
             const communityPromises = communitiesFromContract.map(async (community: any) => {
@@ -82,18 +120,29 @@ export default function Home() {
                 let name = `Community #${id}`;
                 let description = "No description available";
 
-                try {
-                    // Obtener datos de la comunidad desde IPFS
-                    const response = await axios.get(`${PINATA_GATEWAY}${community.contentCID}`);
-                    if (response.data) {
-                        name = response.data.name || name;
-                        description = response.data.description || description;
+                // Use cache for community data
+                const cacheKey = `community_${id}`;
+                if (communityDataCache.has(cacheKey)) {
+                    const cachedData = communityDataCache.get(cacheKey);
+                    name = cachedData.name;
+                    description = cachedData.description;
+                } else {
+                    try {
+                        // Get community data from IPFS
+                        const communityData = await fetchFromIPFS(community.contentCID);
+                        if (communityData) {
+                            name = communityData.name || name;
+                            description = communityData.description || description;
+                            
+                            // Cache the community data
+                            communityDataCache.set(cacheKey, { name, description });
+                        }
+                    } catch (err) {
+                        console.error(`Error getting data for community ${id}:`, err);
                     }
-                } catch (err) {
-                    console.error(`Error al obtener datos para comunidad ${id}:`, err);
                 }
 
-                // Verificar si el usuario es miembro
+                // Check if user is a member
                 let isMember = false;
                 let memberCount = 0;
 
@@ -104,15 +153,15 @@ export default function Home() {
                         memberCount = parseInt(count.toString(), 10);
                     }
                 } catch (err) {
-                    console.error(`Error al verificar membresía para comunidad ${id}:`, err);
+                    console.error(`Error checking membership for community ${id}:`, err);
                 }
 
-                // Obtener tópicos de la comunidad
+                // Get community topics
                 let topicsList: string[] = [];
                 try {
                     topicsList = await contract.getCommunityTopics(id);
                 } catch (err) {
-                    console.error(`Error al obtener tópicos para comunidad ${id}:`, err);
+                    console.error(`Error getting topics for community ${id}:`, err);
                 }
 
                 return {
@@ -131,22 +180,28 @@ export default function Home() {
             const parsedCommunities = await Promise.all(communityPromises);
             setCommunities(parsedCommunities);
 
-            // Si no hay comunidad seleccionada y hay comunidades disponibles, seleccionar la primera
+            // If no community is selected and communities are available, select the first one
             if (!selectedCommunityId && parsedCommunities.length > 0) {
                 setSelectedCommunityId(parsedCommunities[0].id);
                 fetchPostsForCommunity(parsedCommunities[0].id);
             }
 
         } catch (error) {
-            console.error("Error al obtener comunidades:", error);
+            console.error("Error getting communities:", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    // Obtener posts de una comunidad específica
+    // Get posts for a specific community
     const fetchPostsForCommunity = async (communityId: string) => {
+        if (isLoading) return;
+        
         try {
+            setIsLoading(true);
+            
             if (!provider) {
-                console.error("No se encontró un proveedor en el contexto de wallet.");
+                console.error("No provider found in wallet context.");
                 return;
             }
 
@@ -159,14 +214,25 @@ export default function Home() {
                     const { title } = post;
                     let content = "";
 
-                    try {
-                        const response = await axios.get(`${PINATA_GATEWAY}${post.contentCID}`);
-                        content = response.data;
-                    } catch (err) {
-                        console.error(`❌ Error al obtener contenido para post ${id}`, err);
+                    // Use cache for post content
+                    const cacheKey = `post_${id}`;
+                    if (contentCache.has(cacheKey)) {
+                        content = contentCache.get(cacheKey);
+                    } else {
+                        try {
+                            const postContent = await fetchFromIPFS(post.contentCID);
+                            content = postContent || "";
+                            contentCache.set(cacheKey, content);
+                        } catch (err) {
+                            console.error(`Error getting content for post ${id}`, err);
+                        }
                     }
 
-                    const imageUrl = post.imageCID ? `https://ipfs.io/ipfs/${post.imageCID}` : undefined;
+                    // Handle image URL with proper gateway
+                    let imageUrl = undefined;
+                    if (post.imageCID && post.imageCID !== "") {
+                        imageUrl = `${BACKUP_GATEWAY}${post.imageCID}`;
+                    }
 
                     return {
                         id: id.toString(),
@@ -184,11 +250,11 @@ export default function Home() {
                 })
             );
 
-            // Ordenamos los posts por timestamp de forma descendente (más recientes primero)
+            // Sort posts by timestamp (newest first)
             postsParsed.sort((a, b) => b.timestamp - a.timestamp);
             setPosts(postsParsed);
 
-            // Actualizar tópicos basados en la comunidad seleccionada
+            // Update topics based on selected community
             const community = communities.find(c => c.id === communityId);
             if (community) {
                 const newTopics = community.topics.map((name, index) => ({
@@ -200,20 +266,22 @@ export default function Home() {
 
         } catch (error) {
             console.error("Error fetching posts for community:", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    // Función original modificada para compatibilidad
+    // Original function modified for compatibility
     const fetchPostsFromContract = async () => {
         if (selectedCommunityId) {
             fetchPostsForCommunity(selectedCommunityId);
         }
     };
 
-    // Unirse a una comunidad
+    // Join a community
     const handleJoinCommunity = async (communityId: string) => {
         if (!provider) {
-            alert("No hay proveedor de Ethereum conectado.");
+            alert("No Ethereum provider connected.");
             return;
         }
 
@@ -224,18 +292,18 @@ export default function Home() {
             const tx = await contract.joinCommunity(communityId);
             await tx.wait();
 
-            // Actualizar la lista de comunidades
+            // Update community list
             fetchCommunities();
         } catch (error) {
-            console.error("Error al unirse a la comunidad:", error);
-            alert("Error al unirse a la comunidad. Revisa la consola.");
+            console.error("Error joining community:", error);
+            alert("Error joining community. Check console.");
         }
     };
 
-    // Abandonar una comunidad
+    // Leave a community
     const handleLeaveCommunity = async (communityId: string) => {
         if (!provider) {
-            alert("No hay proveedor de Ethereum conectado.");
+            alert("No Ethereum provider connected.");
             return;
         }
 
@@ -246,15 +314,15 @@ export default function Home() {
             const tx = await contract.leaveCommunity(communityId);
             await tx.wait();
 
-            // Actualizar la lista de comunidades
+            // Update community list
             fetchCommunities();
         } catch (error) {
-            console.error("Error al abandonar la comunidad:", error);
-            alert("Error al abandonar la comunidad. Revisa la consola.");
+            console.error("Error leaving community:", error);
+            alert("Error leaving community. Check console.");
         }
     };
 
-    // Para subir datos de la comunidad a Pinata
+    // Upload community data to Pinata
     const uploadCommunityData = async (name: string, description: string) => {
         try {
             const url = "https://api.pinata.cloud/pinning/pinFileToIPFS";
@@ -279,42 +347,84 @@ export default function Home() {
 
             return res.data.IpfsHash as string;
         } catch (err) {
-            console.error("Error subiendo datos de comunidad a Pinata:", err);
+            console.error("Error uploading community data to Pinata:", err);
             throw err;
         }
     };
 
-    // Crear una nueva comunidad
+    // Create a new community
     const handleCreateCommunity = async (name: string, description: string, communityTopics: string[]) => {
         if (!provider) {
-            alert("No hay proveedor de Ethereum conectado.");
+            alert("No Ethereum provider connected.");
             return;
         }
 
         try {
-            // Subir datos a IPFS
+            // Upload data to IPFS
             const contentCID = await uploadCommunityData(name, description);
 
-            // Enviar transacción al contrato
+            // Send transaction to contract
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
-
-            const tx = await contract.createCommunity(contentCID, communityTopics);
-            await tx.wait();
-
-            // Actualizar comunidades
-            fetchCommunities();
-            setIsCreatingCommunity(false);
-        } catch (error) {
-            console.error("Error al crear comunidad:", error);
-            alert("Error al crear la comunidad. Revisa la consola.");
+            
+            // First, check if we can estimate the gas for this transaction
+            // This will throw an error with the revert reason if there's an issue
+            try {
+                // Estimate gas before attempting the transaction
+                await contract.createCommunity.estimateGas(contentCID, communityTopics);
+                
+                // If estimation succeeds, proceed with the transaction
+                const tx = await contract.createCommunity(contentCID, communityTopics);
+                await tx.wait();
+                
+                // Update communities
+                fetchCommunities();
+                setIsCreatingCommunity(false);
+            } catch (estimateError: any) {
+                console.error("Gas estimation error:", estimateError);
+                
+                // Check for cooldown error specifically
+                if (estimateError.message && estimateError.message.includes("Community creation cooldown active")) {
+                    alert("You need to wait before creating another community. There is a cooldown period between community creations.");
+                } else {
+                    // Generic error for other cases
+                    alert(`Transaction would fail: ${estimateError.message}`);
+                }
+            }
+        } catch (error: any) {
+            console.error("Error creating community:", error);
+            
+            // Attempt to extract the revert reason if available
+            let errorMessage = "Error creating community. Check console.";
+            if (error.data) {
+                try {
+                    // Some providers format error data in a way we can extract
+                    // For ethers v6
+                    const decodedError = ethers.toUtf8String?.(error.data) || 
+                                        // Fallback for ethers v5 or other versions
+                                        new TextDecoder().decode(error.data);
+                    
+                    if (decodedError.includes("cooldown")) {
+                        errorMessage = "You need to wait before creating another community. Cooldown period is active.";
+                    }
+                } catch (decodeError) {
+                    // If we can't decode, use the original message
+                    if (error.message && error.message.includes("cooldown")) {
+                        errorMessage = "You need to wait before creating another community. Cooldown period is active.";
+                    }
+                }
+            } else if (error.message && error.message.includes("cooldown")) {
+                errorMessage = "You need to wait before creating another community. Cooldown period is active.";
+            }
+            
+            alert(errorMessage);
         }
     };
 
-    // Función modificada para crear posts en comunidades
+    // Modified function to create posts in communities
     const handleCreatePost = async (communityId: string, imageCID: string | null, textCID: string, topic: string) => {
         if (!provider) {
-            alert("No hay proveedor de Ethereum conectado.");
+            alert("No Ethereum provider connected.");
             return;
         }
 
@@ -323,8 +433,8 @@ export default function Home() {
             const contract = new Contract(forumAddress, forumABI, signer);
 
             const tx = await contract.createPost(
-                communityId, // Ahora pasamos el ID de comunidad
-                "Terminal v1", // Título del post
+                communityId,
+                "Terminal v1", // Post title
                 textCID,
                 imageCID ?? "",
                 topic
@@ -335,12 +445,12 @@ export default function Home() {
             fetchPostsForCommunity(communityId);
             setIsCreating(false);
         } catch (error) {
-            console.error("Error al enviar post al contrato:", error);
-            alert("Error al enviar el post. Revisa la consola.");
+            console.error("Error sending post to contract:", error);
+            alert("Error sending post. Check console.");
         }
     };
 
-    // Seleccionar una comunidad
+    // Select a community
     const handleSelectCommunity = (communityId: string) => {
         setSelectedCommunityId(communityId);
         fetchPostsForCommunity(communityId);
@@ -351,13 +461,6 @@ export default function Home() {
             fetchCommunities();
         }
     }, [isConnected]);
-
-
-    useEffect(() => {
-        if (isConnected && selectedCommunityId) {
-            fetchPostsForCommunity(selectedCommunityId);
-        }
-    }, [isConnected, selectedCommunityId]);
 
     return (
         <div className="min-h-screen relative">
@@ -375,7 +478,7 @@ export default function Home() {
 
                 {isConnected && (
                     <main className="space-y-6">
-                        {/* Navegación entre comunidades y creación */}
+                        {/* Navigation between communities and creation */}
                         <div className="flex justify-between items-center">
                             <div className="flex space-x-4">
                                 <Button
@@ -396,6 +499,7 @@ export default function Home() {
                                 <Button
                                     onClick={() => setIsCreatingCommunity(!isCreatingCommunity)}
                                     className="text-xs py-1 px-2 h-auto bg-transparent border border-[var(--matrix-green)] hover:bg-[var(--matrix-dark-green)]"
+                                    disabled={isLoading}
                                 >
                                     {isCreatingCommunity ? "Cancel" : "Create Community"}
                                 </Button>
@@ -403,15 +507,22 @@ export default function Home() {
                                 <Button
                                     onClick={() => setIsCreating(!isCreating)}
                                     className="text-xs py-1 px-2 h-auto bg-transparent border border-[var(--matrix-green)] hover:bg-[var(--matrix-dark-green)]"
-                                    disabled={!selectedCommunityId}
+                                    disabled={!selectedCommunityId || isLoading}
                                 >
                                     {isCreating ? "Cancel" : "Create Post"}
                                 </Button>
                             )}
                         </div>
 
-                        {/* Vista de comunidades */}
-                        {showCommunityList && (
+                        {/* Loading indicator */}
+                        {isLoading && (
+                            <div className="text-center p-4">
+                                <p className="text-[var(--matrix-green)] animate-pulse">Loading...</p>
+                            </div>
+                        )}
+
+                        {/* Communities view */}
+                        {showCommunityList && !isLoading && (
                             <div className="terminal-window p-6 rounded-lg">
                                 {isCreatingCommunity ? (
                                     <div className="border-2 border-[var(--matrix-green)] rounded-lg p-6 bg-black">
@@ -514,7 +625,7 @@ export default function Home() {
 
                                                             <button
                                                                 onClick={(e) => {
-                                                                    e.stopPropagation(); // Evitar que se active el onClick del div padre
+                                                                    e.stopPropagation();
                                                                     if (community.isMember) {
                                                                         handleLeaveCommunity(community.id);
                                                                     } else {
@@ -538,8 +649,8 @@ export default function Home() {
                             </div>
                         )}
 
-                        {/* Vista de posts */}
-                        {!showCommunityList && (
+                        {/* Posts view */}
+                        {!showCommunityList && !isLoading && (
                             <>
                                 {isCreating ? (
                                     <CreatePost
@@ -566,11 +677,15 @@ export default function Home() {
                                             posts={posts.map(post => ({
                                                 id: post.id,
                                                 content: post.content,
-                                                timestamp: post.timestamp || Date.now(), // Valor por defecto
-                                                topic: post.topic || "General", // Valor por defecto
+                                                timestamp: post.timestamp || Date.now(),
+                                                topic: post.topic || "General",
                                                 imageUrl: post.imageUrl,
-                                                communityId: post.communityId || "1" // Valor por defecto
+                                                communityId: post.communityId || "1",
+                                                title: post.title,
+                                                likeCount: post.likeCount,
+                                                commentCount: post.commentCount
                                             }))}
+                                            communities={communities}
                                         />
                                     </div>
                                 )}
