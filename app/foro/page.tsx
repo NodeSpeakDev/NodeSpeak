@@ -10,7 +10,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ethers, Contract } from "ethers";
 import { useWalletContext } from "@/contexts/WalletContext";
 import axios from 'axios';
-import { forumAddress, forumABI } from "@/contracts/DecentralizedForum";
+import { forumAddress, forumABI } from "@/contracts/DecentralizedForum_Commuties";
 
 
 const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
