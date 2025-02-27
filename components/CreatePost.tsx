@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ImagePlus, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TopicsDropdown } from "@/components/TopicsDropdown";
@@ -11,19 +11,53 @@ interface Topic {
     name: string;
 }
 
+interface Community {
+    id: string;
+    name: string;
+    topics: string[];
+}
+
 interface CreatePostProps {
-    onSubmit: (imageCID: string | null, textCID: string, topicName: string) => Promise<void>;
+    onSubmit: (communityId: string, imageCID: string | null, textCID: string, topicName: string) => Promise<void>;
     isCreating: boolean;
     setIsCreating: (value: boolean) => void;
     topics: Topic[];
-    setTopics: (topics: Topic[]) => void; // ← Agregamos esta prop
+    setTopics: (topics: Topic[]) => void;
+    communities: Community[];
+    selectedCommunityId: string | null;
+    onCommunitySelect: (communityId: string) => void;
 }
-export const CreatePost = ({ onSubmit, isCreating, setIsCreating, topics, setTopics }: CreatePostProps) => {
+
+export const CreatePost = ({
+    onSubmit,
+    isCreating,
+    setIsCreating,
+    topics,
+    setTopics,
+    communities,
+    selectedCommunityId,
+    onCommunitySelect
+}: CreatePostProps) => {
 
     const [newPost, setNewPost] = useState("");
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
     const [selectedTopic, setSelectedTopic] = useState<string>("");
+    const [communityTopics, setCommunityTopics] = useState<Topic[]>([]);
+
+    // Actualizar los tópicos disponibles cuando cambia la comunidad seleccionada
+    useEffect(() => {
+        if (selectedCommunityId) {
+            const community = communities.find(c => c.id === selectedCommunityId);
+            if (community) {
+                const availableTopics = community.topics.map((name, index) => ({
+                    id: index,
+                    name
+                }));
+                setCommunityTopics(availableTopics);
+            }
+        }
+    }, [selectedCommunityId, communities]);
 
     const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -34,6 +68,12 @@ export const CreatePost = ({ onSubmit, isCreating, setIsCreating, topics, setTop
 
     const handleTopicChange = (topic: string) => {
         setSelectedTopic(topic);
+    };
+
+    const handleCommunityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        onCommunitySelect(e.target.value);
+        // Resetear el tópico seleccionado cuando cambia la comunidad
+        setSelectedTopic("");
     };
 
     async function pinFileToIPFS(file: File) {
@@ -70,6 +110,10 @@ export const CreatePost = ({ onSubmit, isCreating, setIsCreating, topics, setTop
             alert("Selecciona un tópico");
             return;
         }
+        if (!selectedCommunityId) {
+            alert("Selecciona una comunidad");
+            return;
+        }
 
         setLoading(true);
         try {
@@ -87,7 +131,7 @@ export const CreatePost = ({ onSubmit, isCreating, setIsCreating, topics, setTop
             const textCid = await pinFileToIPFS(textFile);
             console.log("Texto subido con CID:", textCid);
 
-            await onSubmit(imageCid, textCid, selectedTopic);
+            await onSubmit(selectedCommunityId, imageCid, textCid, selectedTopic);
             setIsCreating(false); // Ahora lo controla `page.tsx`
         } catch (error) {
             console.error("Error en el proceso de subida:", error);
@@ -102,7 +146,34 @@ export const CreatePost = ({ onSubmit, isCreating, setIsCreating, topics, setTop
         <div className="border-l-2 border-[var(--matrix-green)] pl-3 mb-4">
             {isCreating ? (
                 <>
-                    <TopicsDropdown onTopicSelect={handleTopicChange} topics={topics} setTopics={setTopics} />
+                    {/* Selector de comunidad */}
+                    <div className="mb-4">
+                        <label className="text-[var(--matrix-green)] mb-1 block">Comunidad</label>
+                        <select
+                            value={selectedCommunityId || ""}
+                            onChange={handleCommunityChange}
+                            className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded w-full"
+                        >
+                            <option value="" disabled>Selecciona una comunidad</option>
+                            {communities.map(community => (
+                                <option key={community.id} value={community.id}>
+                                    {community.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Selector de tópico (solo muestra los tópicos de la comunidad seleccionada) */}
+                    {selectedCommunityId && (
+                        <TopicsDropdown
+                            onTopicSelect={handleTopicChange}
+                            topics={communityTopics}
+                            setTopics={setTopics}
+                            disableAddingTopics={true} // No permitir añadir tópicos directamente aquí
+                            selectedTopic={selectedTopic}
+                        />
+                    )}
+
                     <div className="terminal-window p-4 rounded-lg">
                         <div className="terminal-prompt flex items-center mt-2">
                             <input
@@ -111,6 +182,7 @@ export const CreatePost = ({ onSubmit, isCreating, setIsCreating, topics, setTop
                                 onChange={(e) => setNewPost(e.target.value)}
                                 className="terminal-input flex-1 ml-2"
                                 autoFocus
+                                placeholder="Escribe tu post aquí..."
                             />
                         </div>
                     </div>
@@ -125,12 +197,17 @@ export const CreatePost = ({ onSubmit, isCreating, setIsCreating, topics, setTop
                                 />
                                 <ImagePlus className="h-4 w-4 hover:text-[var(--matrix-green)]" />
                             </label>
+                            {selectedImage && (
+                                <span className="text-xs text-[var(--matrix-green)]">
+                                    {selectedImage.name}
+                                </span>
+                            )}
                         </div>
                         <div className="flex gap-2">
                             <Button
                                 onClick={handleSubmit}
                                 className="text-xs py-1 px-2 h-auto bg-[var(--matrix-green)] text-black hover:bg-[var(--matrix-dark-green)] hover:text-[var(--matrix-green)]"
-                                disabled={loading}
+                                disabled={loading || !selectedTopic || !selectedCommunityId}
                             >
                                 {loading ? "Subiendo..." : "Post"} <Send className="h-3 w-3 ml-1" />
                             </Button>

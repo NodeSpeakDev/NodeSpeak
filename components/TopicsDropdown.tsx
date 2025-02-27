@@ -1,118 +1,119 @@
-"use client"
-
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
+"use client";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ChevronDown, Plus } from "lucide-react";
 
 interface Topic {
     id: number;
     name: string;
 }
 
-export const TopicsDropdown = ({ onTopicSelect, topics, setTopics }: {
-    onTopicSelect: (topic: string) => void,
-    topics: Topic[],
-    setTopics: (topics: Topic[]) => void
-}) => {
+interface TopicsDropdownProps {
+    onTopicSelect: (topic: string) => void;
+    topics: Topic[];
+    setTopics: (topics: Topic[]) => void;
+    disableAddingTopics?: boolean; // Nueva prop para deshabilitar la adición de tópicos
+    selectedTopic?: string; // Prop para el tópico seleccionado
+}
+
+export function TopicsDropdown({ onTopicSelect, topics, setTopics, disableAddingTopics = false, selectedTopic = "" }: TopicsDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedTopic, setSelectedTopic] = useState('Select a Topic');
+    const [newTopic, setNewTopic] = useState("");
+    const [addingTopic, setAddingTopic] = useState(false);
 
-    const dropdownRef = useRef<HTMLDivElement>(null);
+    const toggleDropdown = () => setIsOpen(!isOpen);
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const filteredTopics = topics.filter(topic =>
-        topic.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const handleTopicSelect = (topicName: string) => {
-        onTopicSelect(topicName);
-        setSelectedTopic(topicName);
+    const selectTopic = (topic: string) => {
+        onTopicSelect(topic);
         setIsOpen(false);
-        setSearchTerm('');
     };
 
-    const handleCreateNewTopic = (newTopicName: string) => {
-        // Verificar si el nombre ya existe (case insensitive)
-        const topicExists = topics.some(
-            topic => topic.name.toLowerCase() === newTopicName.toLowerCase()
-        );
+    const addNewTopic = () => {
+        if (!newTopic.trim()) {
+            return;
+        }
 
-        if (topicExists) {
-            alert('This topic already exists');
+        // Verificar si ya existe un tópico con este nombre
+        const exists = topics.some(t => t.name.toLowerCase() === newTopic.trim().toLowerCase());
+        if (exists) {
+            alert("Este tópico ya existe");
             return;
         }
 
         const newTopicObj = {
-            id: topics.length + 1,
-            name: newTopicName
+            id: topics.length > 0 ? Math.max(...topics.map(t => t.id)) + 1 : 1,
+            name: newTopic.trim()
         };
 
-        setTopics([...topics, newTopicObj]); 
-        setSelectedTopic(newTopicName);
-        onTopicSelect(newTopicName);
+        const updatedTopics = [...topics, newTopicObj];
+        setTopics(updatedTopics);
+        onTopicSelect(newTopic.trim());
+        setNewTopic("");
+        setAddingTopic(false);
         setIsOpen(false);
-        setSearchTerm('');
     };
 
     return (
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative mb-4">
             <div
-                className="topics-dropdown flex justify-between items-center cursor-pointer p-2 border border-[var(--matrix-green)] rounded-lg"
-                onClick={() => setIsOpen(!isOpen)}
+                className="bg-black border-2 border-[var(--matrix-green)] rounded p-2 cursor-pointer flex justify-between items-center"
+                onClick={toggleDropdown}
             >
-                <span>{selectedTopic}</span>
-                {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                <span className="text-white">
+                    {selectedTopic || "Seleccionar Tópico"}
+                </span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </div>
 
             {isOpen && (
-                <div className="topics-list absolute w-full mt-2 bg-[var(--terminal-black)] border border-[var(--matrix-green)] rounded-lg overflow-hidden z-20">
-                    {/* Barra de búsqueda */}
-                    <div className="p-2 border-b border-[var(--matrix-green)]">
-                        <div className="flex items-center bg-[var(--terminal-black)] rounded-md p-2">
-                            <Search size={16} className="text-[var(--matrix-green)]" />
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Search or create topic..."
-                                className="bg-transparent border-none outline-none ml-2 w-full text-[var(--matrix-green)]"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Lista de tópicos filtrados */}
-                    <div className="max-h-60 overflow-y-auto">
-                        {filteredTopics.map((topic) => (
-                            <div
+                <div className="absolute z-10 mt-1 w-full bg-black border-2 border-[var(--matrix-green)] rounded shadow-lg">
+                    <ul className="py-1">
+                        {topics.map((topic) => (
+                            <li
                                 key={topic.id}
-                                className="topic-item p-2 hover:bg-[var(--matrix-dark-green)] cursor-pointer"
-                                onClick={() => handleTopicSelect(topic.name)}
+                                className={`px-2 py-1 cursor-pointer hover:bg-gray-900 ${selectedTopic === topic.name ? 'text-[var(--matrix-green)]' : 'text-white'
+                                    }`}
+                                onClick={() => selectTopic(topic.name)}
                             >
                                 {topic.name}
-                            </div>
+                            </li>
                         ))}
 
-                        {/* Opción para crear nuevo tópico */}
-                        {searchTerm && !filteredTopics.length && (
-                            <div
-                                className="p-2 hover:bg-[var(--matrix-dark-green)] cursor-pointer flex items-center"
-                                onClick={() => handleCreateNewTopic(searchTerm)}
-                            >
-                                <Plus size={16} className="mr-2" />
-                                Create "{searchTerm}"
-                            </div>
+                        {!disableAddingTopics && (
+                            <>
+                                {!addingTopic && (
+                                    <li
+                                        className="px-2 py-1 cursor-pointer hover:bg-gray-900 text-[var(--matrix-green)] flex items-center"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAddingTopic(true);
+                                        }}
+                                    >
+                                        <Plus className="h-4 w-4 mr-1" /> Añadir Tópico
+                                    </li>
+                                )}
+
+                                {addingTopic && (
+                                    <li className="px-2 py-1 flex items-center" onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                            type="text"
+                                            value={newTopic}
+                                            onChange={(e) => setNewTopic(e.target.value)}
+                                            className="bg-black border border-[var(--matrix-green)] text-white p-1 rounded flex-1 mr-2"
+                                            placeholder="Nuevo tópico"
+                                            autoFocus
+                                        />
+                                        <Button
+                                            onClick={addNewTopic}
+                                            className="text-xs py-1 px-2 h-auto bg-[var(--matrix-green)] text-black hover:bg-[var(--matrix-dark-green)]"
+                                        >
+                                            Añadir
+                                        </Button>
+                                    </li>
+                                )}
+                            </>
                         )}
-                    </div>
+                    </ul>
                 </div>
             )}
         </div>
