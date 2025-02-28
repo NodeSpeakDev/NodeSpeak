@@ -1,6 +1,11 @@
-export const forumAddress = "0x57AaeFc3dF759312Aae6a3213711CaA68Fb7Df31";
+export const forumAddress = "0x7672491195d7D5e4540814BfC490897211b4FEF9";
 
 export const forumABI = [
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
 	{
 		"inputs": [
 			{
@@ -35,6 +40,19 @@ export const forumABI = [
 		"name": "addTopicToCommunity",
 		"outputs": [],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "communityManager",
+		"outputs": [
+			{
+				"internalType": "contract ForumCommunityManager",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -130,63 +148,6 @@ export const forumABI = [
 		"name": "deactivatePost",
 		"outputs": [],
 		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint32",
-				"name": "communityId",
-				"type": "uint32"
-			}
-		],
-		"name": "joinCommunity",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint32",
-				"name": "communityId",
-				"type": "uint32"
-			}
-		],
-		"name": "leaveCommunity",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint32",
-				"name": "postId",
-				"type": "uint32"
-			}
-		],
-		"name": "likePost",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"stateMutability": "nonpayable",
-		"type": "constructor"
-	},
-	{
-		"inputs": [],
-		"name": "communityManager",
-		"outputs": [
-			{
-				"internalType": "contract ForumCommunityManager",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -707,6 +668,45 @@ export const forumABI = [
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint32",
+				"name": "communityId",
+				"type": "uint32"
+			}
+		],
+		"name": "joinCommunity",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint32",
+				"name": "communityId",
+				"type": "uint32"
+			}
+		],
+		"name": "leaveCommunity",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint32",
+				"name": "postId",
+				"type": "uint32"
+			}
+		],
+		"name": "likePost",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{

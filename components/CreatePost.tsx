@@ -15,6 +15,7 @@ interface Community {
     id: string;
     name: string;
     topics: string[];
+    isMember?: boolean; // Añade esta línea
 }
 
 interface CreatePostProps {
@@ -156,11 +157,16 @@ export const CreatePost = ({
                         >
                             <option value="" disabled>Selecciona una comunidad</option>
                             {communities.map(community => (
-                                <option key={community.id} value={community.id}>
-                                    {community.name}
+                                <option
+                                    key={community.id}
+                                    value={community.id}
+                                    disabled={!community.isMember}
+                                >
+                                    {community.name} {!community.isMember ? "(Unirse primero)" : ""}
                                 </option>
                             ))}
                         </select>
+                        <p className="text-xs text-gray-400 mt-1">Solo puedes crear posts en comunidades a las que te has unido.</p>
                     </div>
 
                     {/* Selector de tópico (solo muestra los tópicos de la comunidad seleccionada) */}

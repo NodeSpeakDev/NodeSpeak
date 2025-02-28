@@ -23,6 +23,9 @@ const communityDataCache = new Map();
 
 export default function Home() {
     const { isConnected, provider } = useWalletContext();
+    const [creatingCommunity, setCreatingCommunity] = useState(false);
+    const [joiningCommunityId, setJoiningCommunityId] = useState<string | null>(null);
+    const [leavingCommunityId, setLeavingCommunityId] = useState<string | null>(null);
 
     // Updated interfaces
     interface Post {
@@ -52,6 +55,7 @@ export default function Home() {
         postCount: number;
         creator: string;
         isMember?: boolean;
+        isCreator?: boolean; // Agregar esta línea
         memberCount?: number;
         topics: string[];
     }
@@ -94,10 +98,10 @@ export default function Home() {
     // Get communities from contract
     const fetchCommunities = async () => {
         if (isLoading) return;
-        
+
         try {
             setIsLoading(true);
-            
+
             if (!provider) {
                 console.error("No provider found in wallet context.");
                 return;
@@ -133,7 +137,7 @@ export default function Home() {
                         if (communityData) {
                             name = communityData.name || name;
                             description = communityData.description || description;
-                            
+
                             // Cache the community data
                             communityDataCache.set(cacheKey, { name, description });
                         }
@@ -142,13 +146,19 @@ export default function Home() {
                     }
                 }
 
-                // Check if user is a member
+                // Check if user is a member or the creator
                 let isMember = false;
                 let memberCount = 0;
+                const isCreator = community.creator.toLowerCase() === userAddress.toLowerCase();
 
                 try {
                     if (userAddress) {
-                        isMember = await contract.isMember(id, userAddress);
+                        // Si el usuario es el creador, automáticamente es miembro
+                        if (isCreator) {
+                            isMember = true;
+                        } else {
+                            isMember = await contract.isMember(id, userAddress);
+                        }
                         const count = await contract.getCommunityMemberCount(id);
                         memberCount = parseInt(count.toString(), 10);
                     }
@@ -172,6 +182,7 @@ export default function Home() {
                     postCount: parseInt(community.postCount.toString(), 10),
                     creator: community.creator,
                     isMember,
+                    isCreator,
                     memberCount,
                     topics: topicsList
                 };
@@ -196,10 +207,10 @@ export default function Home() {
     // Get posts for a specific community
     const fetchPostsForCommunity = async (communityId: string) => {
         if (isLoading) return;
-        
+
         try {
             setIsLoading(true);
-            
+
             if (!provider) {
                 console.error("No provider found in wallet context.");
                 return;
@@ -279,6 +290,7 @@ export default function Home() {
     };
 
     // Join a community
+    // Join a community
     const handleJoinCommunity = async (communityId: string) => {
         if (!provider) {
             alert("No Ethereum provider connected.");
@@ -286,20 +298,58 @@ export default function Home() {
         }
 
         try {
+            setJoiningCommunityId(communityId); // Nuevo estado para mostrar spinner
+
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
 
+            // Verificar primero si ya es miembro
+            const userAddress = await signer.getAddress();
+            const isMember = await contract.isMember(communityId, userAddress);
+
+            if (isMember) {
+                console.log("Ya eres miembro de esta comunidad.");
+
+                // Actualizar el estado localmente sin hacer la transacción
+                setCommunities(prev => prev.map(community => {
+                    if (community.id === communityId) {
+                        return { ...community, isMember: true };
+                    }
+                    return community;
+                }));
+
+                setJoiningCommunityId(null);
+                return;
+            }
+
+            // Si no es miembro, proceder con la transacción
             const tx = await contract.joinCommunity(communityId);
             await tx.wait();
 
             // Update community list
             fetchCommunities();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error joining community:", error);
-            alert("Error joining community. Check console.");
+
+            // Manejar el caso específico "Already a member"
+            if (error.message && error.message.includes("Already a member")) {
+                alert("You are already a member of this community.");
+
+                // Actualizar el estado localmente
+                setCommunities(prev => prev.map(community => {
+                    if (community.id === communityId) {
+                        return { ...community, isMember: true };
+                    }
+                    return community;
+                }));
+            } else {
+                alert("Error joining community. Check console.");
+            }
+        } finally {
+            setJoiningCommunityId(null);
         }
     };
-
+    // Leave a community
     // Leave a community
     const handleLeaveCommunity = async (communityId: string) => {
         if (!provider) {
@@ -307,7 +357,16 @@ export default function Home() {
             return;
         }
 
+        // Verificar si el usuario es el creador
+        const community = communities.find(c => c.id === communityId);
+        if (community?.isCreator) {
+            alert("As the creator of this community, you cannot leave it.");
+            return;
+        }
+
         try {
+            setLeavingCommunityId(communityId); // Nuevo estado para mostrar spinner
+
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
 
@@ -319,6 +378,8 @@ export default function Home() {
         } catch (error) {
             console.error("Error leaving community:", error);
             alert("Error leaving community. Check console.");
+        } finally {
+            setLeavingCommunityId(null);
         }
     };
 
@@ -353,6 +414,7 @@ export default function Home() {
     };
 
     // Create a new community
+    // Create a new community
     const handleCreateCommunity = async (name: string, description: string, communityTopics: string[]) => {
         if (!provider) {
             alert("No Ethereum provider connected.");
@@ -360,32 +422,39 @@ export default function Home() {
         }
 
         try {
+            setCreatingCommunity(true); // Para mostrar el estado de carga
+
             // Upload data to IPFS
             const contentCID = await uploadCommunityData(name, description);
 
             // Send transaction to contract
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
-            
+
             // First, check if we can estimate the gas for this transaction
-            // This will throw an error with the revert reason if there's an issue
             try {
                 // Estimate gas before attempting the transaction
                 await contract.createCommunity.estimateGas(contentCID, communityTopics);
-                
+
                 // If estimation succeeds, proceed with the transaction
                 const tx = await contract.createCommunity(contentCID, communityTopics);
                 await tx.wait();
-                
+
                 // Update communities
                 fetchCommunities();
                 setIsCreatingCommunity(false);
             } catch (estimateError: any) {
                 console.error("Gas estimation error:", estimateError);
-                
+
                 // Check for cooldown error specifically
                 if (estimateError.message && estimateError.message.includes("Community creation cooldown active")) {
-                    alert("You need to wait before creating another community. There is a cooldown period between community creations.");
+                    // Información sobre el tiempo de espera (1 día según el contrato)
+                    const waitTimeMessage = "You need to wait before creating another community. The cooldown period is 24 hours from your last community creation.";
+
+                    alert(waitTimeMessage);
+
+                    // Añade mensaje en consola para desarrolladores
+                    console.log("Para desarrollo: Considera modificar el contrato a 5 minutos de cooldown y redeployarlo.");
                 } else {
                     // Generic error for other cases
                     alert(`Transaction would fail: ${estimateError.message}`);
@@ -393,34 +462,37 @@ export default function Home() {
             }
         } catch (error: any) {
             console.error("Error creating community:", error);
-            
+
             // Attempt to extract the revert reason if available
             let errorMessage = "Error creating community. Check console.";
             if (error.data) {
                 try {
                     // Some providers format error data in a way we can extract
                     // For ethers v6
-                    const decodedError = ethers.toUtf8String?.(error.data) || 
-                                        // Fallback for ethers v5 or other versions
-                                        new TextDecoder().decode(error.data);
-                    
+                    const decodedError = ethers.toUtf8String?.(error.data) ||
+                        // Fallback for ethers v5 or other versions
+                        new TextDecoder().decode(error.data);
+
                     if (decodedError.includes("cooldown")) {
-                        errorMessage = "You need to wait before creating another community. Cooldown period is active.";
+                        errorMessage = "You need to wait 24 hours between community creations. Please try again later.";
                     }
                 } catch (decodeError) {
                     // If we can't decode, use the original message
                     if (error.message && error.message.includes("cooldown")) {
-                        errorMessage = "You need to wait before creating another community. Cooldown period is active.";
+                        errorMessage = "You need to wait 24 hours between community creations. Please try again later.";
                     }
                 }
             } else if (error.message && error.message.includes("cooldown")) {
-                errorMessage = "You need to wait before creating another community. Cooldown period is active.";
+                errorMessage = "You need to wait 24 hours between community creations. Please try again later.";
             }
-            
+
             alert(errorMessage);
+        } finally {
+            setCreatingCommunity(false);
         }
     };
 
+    // Modified function to create posts in communities
     // Modified function to create posts in communities
     const handleCreatePost = async (communityId: string, imageCID: string | null, textCID: string, topic: string) => {
         if (!provider) {
@@ -432,21 +504,61 @@ export default function Home() {
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
 
-            const tx = await contract.createPost(
-                communityId,
-                "Terminal v1", // Post title
-                textCID,
-                imageCID ?? "",
-                topic
-            );
+            // First, check if the user is a member of the community
+            try {
+                const userAddress = await signer.getAddress();
+                const isMember = await contract.isMember(communityId, userAddress);
 
-            await tx.wait();
+                if (!isMember) {
+                    alert("You must be a member of this community to create a post. Please join the community first.");
+                    return;
+                }
 
-            fetchPostsForCommunity(communityId);
-            setIsCreating(false);
-        } catch (error) {
+                // Attempt to estimate gas first to catch potential errors
+                await contract.createPost.estimateGas(
+                    communityId,
+                    "Terminal v1", // Post title
+                    textCID,
+                    imageCID ?? "",
+                    topic
+                );
+
+                // If estimation succeeds, proceed with the transaction
+                const tx = await contract.createPost(
+                    communityId,
+                    "Terminal v1", // Post title
+                    textCID,
+                    imageCID ?? "",
+                    topic
+                );
+
+                await tx.wait();
+
+                fetchPostsForCommunity(communityId);
+                setIsCreating(false);
+            } catch (estimateError: any) {
+                console.error("Gas estimation error:", estimateError);
+                if (estimateError.message) {
+                    alert(`Cannot create post: ${estimateError.message}`);
+                } else {
+                    alert("Error creating post. The transaction would fail.");
+                }
+            }
+        } catch (error: any) {
             console.error("Error sending post to contract:", error);
-            alert("Error sending post. Check console.");
+
+            // Try to provide a more specific error message
+            let errorMessage = "Error creating post. Check the console for details.";
+            if (error.message) {
+                // Check if there's a specific contract error we can display
+                if (error.message.includes("not a member")) {
+                    errorMessage = "You must be a member of this community to create a post.";
+                } else if (error.message.includes("cooldown")) {
+                    errorMessage = "Please wait before creating another post. Cooldown period is active.";
+                }
+            }
+
+            alert(errorMessage);
         }
     };
 
@@ -483,13 +595,17 @@ export default function Home() {
                             <div className="flex space-x-4">
                                 <Button
                                     onClick={() => setShowCommunityList(true)}
-                                    className={`text-xs py-1 px-2 h-auto ${showCommunityList ? 'bg-[var(--matrix-green)] text-black' : 'bg-transparent border border-[var(--matrix-green)] hover:bg-[var(--matrix-dark-green)]'}`}
+                                    className={`text-xs py-1 px-2 h-auto ${showCommunityList
+                                        ? 'bg-[var(--matrix-green)] text-black'
+                                        : 'bg-transparent border border-[var(--matrix-green)] text-[var(--matrix-green)] hover:bg-[rgba(0,255,0,0.1)]'}`}
                                 >
                                     Communities
                                 </Button>
                                 <Button
                                     onClick={() => setShowCommunityList(false)}
-                                    className={`text-xs py-1 px-2 h-auto ${showCommunityList ? 'bg-transparent border border-[var(--matrix-green)] hover:bg-[var(--matrix-dark-green)]' : 'bg-[var(--matrix-green)] text-black'}`}
+                                    className={`text-xs py-1 px-2 h-auto ${!showCommunityList
+                                        ? 'bg-[var(--matrix-green)] text-black'
+                                        : 'bg-transparent border border-[var(--matrix-green)] text-[var(--matrix-green)] hover:bg-[rgba(0,255,0,0.1)]'}`}
                                 >
                                     Posts
                                 </Button>
@@ -498,15 +614,15 @@ export default function Home() {
                             {showCommunityList ? (
                                 <Button
                                     onClick={() => setIsCreatingCommunity(!isCreatingCommunity)}
-                                    className="text-xs py-1 px-2 h-auto bg-transparent border border-[var(--matrix-green)] hover:bg-[var(--matrix-dark-green)]"
-                                    disabled={isLoading}
+                                    className="text-xs py-1 px-2 h-auto bg-transparent border border-[var(--matrix-green)] text-[var(--matrix-green)] hover:bg-[rgba(0,255,0,0.1)]"
+                                    disabled={isLoading || creatingCommunity}
                                 >
                                     {isCreatingCommunity ? "Cancel" : "Create Community"}
                                 </Button>
                             ) : (
                                 <Button
                                     onClick={() => setIsCreating(!isCreating)}
-                                    className="text-xs py-1 px-2 h-auto bg-transparent border border-[var(--matrix-green)] hover:bg-[var(--matrix-dark-green)]"
+                                    className="text-xs py-1 px-2 h-auto bg-transparent border border-[var(--matrix-green)] text-[var(--matrix-green)] hover:bg-[rgba(0,255,0,0.1)]"
                                     disabled={!selectedCommunityId || isLoading}
                                 >
                                     {isCreating ? "Cancel" : "Create Post"}
@@ -579,8 +695,13 @@ export default function Home() {
                                                     }
                                                 }}
                                                 className="w-full bg-[var(--matrix-green)] text-black py-2 rounded font-bold mt-4"
+                                                disabled={creatingCommunity}
                                             >
-                                                Create Community
+                                                {creatingCommunity ? (
+                                                    <div className="flex items-center justify-center">
+                                                        <span className="mr-2 animate-pulse">Creating...</span>
+                                                    </div>
+                                                ) : "Create Community"}
                                             </Button>
                                         </form>
                                     </div>
@@ -632,12 +753,25 @@ export default function Home() {
                                                                         handleJoinCommunity(community.id);
                                                                     }
                                                                 }}
-                                                                className={`px-3 py-1 rounded text-sm font-medium ${community.isMember
-                                                                    ? "bg-red-800 hover:bg-red-700 text-white"
-                                                                    : "bg-[var(--matrix-green)] hover:bg-opacity-80 text-black"
+                                                                className={`px-3 py-1 rounded text-sm font-medium ${joiningCommunityId === community.id || leavingCommunityId === community.id
+                                                                        ? "bg-gray-600 text-white"
+                                                                        : community.isMember
+                                                                            ? "bg-red-800 hover:bg-red-700 text-white"
+                                                                            : "bg-[var(--matrix-green)] hover:bg-opacity-80 text-black"
                                                                     }`}
+                                                                disabled={joiningCommunityId === community.id || leavingCommunityId === community.id || community.isCreator}
                                                             >
-                                                                {community.isMember ? "Leave" : "Join"}
+                                                                {joiningCommunityId === community.id ? (
+                                                                    <span className="animate-pulse">Joining...</span>
+                                                                ) : leavingCommunityId === community.id ? (
+                                                                    <span className="animate-pulse">Leaving...</span>
+                                                                ) : community.isCreator ? (
+                                                                    "Creator"
+                                                                ) : community.isMember ? (
+                                                                    "Leave"
+                                                                ) : (
+                                                                    "Join"
+                                                                )}
                                                             </button>
                                                         </div>
                                                     </div>
