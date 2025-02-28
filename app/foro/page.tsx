@@ -504,14 +504,24 @@ export default function Home() {
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
 
+
+
             // First, check if the user is a member of the community
             try {
                 const userAddress = await signer.getAddress();
-                const isMember = await contract.isMember(communityId, userAddress);
 
-                if (!isMember) {
-                    alert("You must be a member of this community to create a post. Please join the community first.");
-                    return;
+                // Verificar si el usuario es el creador o miembro
+                const community = communities.find(c => c.id === communityId);
+                const isCreatorOrMember = community?.isCreator || community?.isMember;
+
+                // Si no hay información en el estado, verificar directamente en el contrato
+                if (!isCreatorOrMember) {
+                    const isMember = await contract.isMember(communityId, userAddress);
+
+                    if (!isMember) {
+                        alert("You must be a member of this community to create a post. Please join the community first.");
+                        return;
+                    }
                 }
 
                 // Attempt to estimate gas first to catch potential errors
@@ -754,10 +764,10 @@ export default function Home() {
                                                                     }
                                                                 }}
                                                                 className={`px-3 py-1 rounded text-sm font-medium ${joiningCommunityId === community.id || leavingCommunityId === community.id
-                                                                        ? "bg-gray-600 text-white"
-                                                                        : community.isMember
-                                                                            ? "bg-red-800 hover:bg-red-700 text-white"
-                                                                            : "bg-[var(--matrix-green)] hover:bg-opacity-80 text-black"
+                                                                    ? "bg-gray-600 text-white"
+                                                                    : community.isMember
+                                                                        ? "bg-red-800 hover:bg-red-700 text-white"
+                                                                        : "bg-[var(--matrix-green)] hover:bg-opacity-80 text-black"
                                                                     }`}
                                                                 disabled={joiningCommunityId === community.id || leavingCommunityId === community.id || community.isCreator}
                                                             >
