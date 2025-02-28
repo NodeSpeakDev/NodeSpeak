@@ -1,13 +1,14 @@
 "use client";
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useWalletContext } from "@/contexts/WalletContext";
 import { Check, LogOut } from "lucide-react";
+import { useRouter } from 'next/navigation';
 
 export const WalletConnect = () => {
     const { isConnected, address, connect, disconnect, ensName } = useWalletContext();
     const [isLoading, setIsLoading] = useState(false);
+    const router = useRouter();
 
     const handleConnect = async () => {
         setIsLoading(true);
@@ -18,6 +19,11 @@ export const WalletConnect = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleDisconnect = () => {
+        disconnect();
+        router.push('/');
     };
 
     return (
@@ -31,10 +37,11 @@ export const WalletConnect = () => {
                         ) : (
                             <span className="font-mono">
                                 {address?.slice(0, 6)}...{address?.slice(-4)}
-                            </span>)}
+                            </span>
+                        )}
                     </div>
                     <Button
-                        onClick={disconnect}
+                        onClick={handleDisconnect}
                         className="bg-red-500 text-white text-xs py-1 px-2 h-auto flex items-center space-x-1"
                     >
                         <LogOut className="h-4 w-4" /> <span>Exit</span>
