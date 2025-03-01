@@ -15,7 +15,7 @@ interface Community {
     id: string;
     name: string;
     topics: string[];
-    isMember?: boolean; // Añade esta línea
+    isMember?: boolean;
 }
 
 interface CreatePostProps {
@@ -133,7 +133,7 @@ export const CreatePost = ({
             console.log("Texto subido con CID:", textCid);
 
             await onSubmit(selectedCommunityId, imageCid, textCid, selectedTopic);
-            setIsCreating(false); // Ahora lo controla `page.tsx`
+            setIsCreating(false);
         } catch (error) {
             console.error("Error en el proceso de subida:", error);
             alert("Error al subir los archivos a Pinata.");
@@ -144,85 +144,117 @@ export const CreatePost = ({
 
 
     return (
-        <div className="border-l-2 border-[var(--matrix-green)] pl-3 mb-4">
+        <div className="terminal-window p-6 rounded-lg">
             {isCreating ? (
-                <>
-                    {/* Selector de comunidad */}
-                    <div className="mb-4">
-                        <label className="text-[var(--matrix-green)] mb-1 block">Comunidad</label>
-                        <select
-                            value={selectedCommunityId || ""}
-                            onChange={handleCommunityChange}
-                            className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded w-full"
-                        >
-                            <option value="" disabled>Selecciona una comunidad</option>
-                            {communities.map(community => (
-                                <option
-                                    key={community.id}
-                                    value={community.id}
-                                    disabled={!community.isMember}
-                                >
-                                    {community.name} {community.isMember ? "" : "(Unirse primero)"}
-                                </option>
-                            ))}
-                        </select>
-                        <p className="text-xs text-gray-400 mt-1">Solo puedes crear posts en comunidades a las que te has unido.</p>
-                    </div>
+                <div className="border-2 border-[var(--matrix-green)] rounded-lg p-6 bg-black">
+                    <h2 className="text-xl font-mono mb-4 text-center text-[var(--matrix-green)]">
+                        Crear Nuevo Post
+                    </h2>
+                    <div className="space-y-4">
+                        {/* Selector de comunidad */}
+                        <div className="flex flex-col">
+                            <label className="text-[var(--matrix-green)] mb-1">Comunidad</label>
+                            <select
+                                value={selectedCommunityId || ""}
+                                onChange={handleCommunityChange}
+                                className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded w-full"
+                            >
+                                <option value="" disabled>Selecciona una comunidad</option>
+                                {communities.map(community => (
+                                    <option
+                                        key={community.id}
+                                        value={community.id}
+                                        disabled={!community.isMember}
+                                    >
+                                        {community.name} {community.isMember ? "" : "(Unirse primero)"}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-gray-400 mt-1">Solo puedes crear posts en comunidades a las que te has unido.</p>
+                        </div>
 
-                    {/* Selector de tópico (solo muestra los tópicos de la comunidad seleccionada) */}
-                    {selectedCommunityId && (
-                        <TopicsDropdown
-                            onTopicSelect={handleTopicChange}
-                            topics={communityTopics}
-                            setTopics={setTopics}
-                            disableAddingTopics={true} // No permitir añadir tópicos directamente aquí
-                            selectedTopic={selectedTopic}
-                        />
-                    )}
+                        {/* Selector de tópico */}
+                        {selectedCommunityId && (
+                            <div className="flex flex-col">
+                                <label className="text-[var(--matrix-green)] mb-1">Tópico</label>
+                                <TopicsDropdown
+                                    onTopicSelect={handleTopicChange}
+                                    topics={communityTopics}
+                                    setTopics={setTopics}
+                                    disableAddingTopics={true}
+                                    selectedTopic={selectedTopic}
+                                />
+                            </div>
+                        )}
 
-                    <div className="terminal-window p-4 rounded-lg">
-                        <div className="terminal-prompt flex items-center mt-2">
-                            <input
-                                type="text"
+                        {/* Contenido del post */}
+                        <div className="flex flex-col">
+                            <label className="text-[var(--matrix-green)] mb-1">Contenido</label>
+                            <textarea
                                 value={newPost}
                                 onChange={(e) => setNewPost(e.target.value)}
-                                className="terminal-input flex-1 ml-2"
-                                autoFocus
+                                className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded h-32"
                                 placeholder="Escribe tu post aquí..."
+                                autoFocus
                             />
                         </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <div className="flex gap-2">
-                            <label className="cursor-pointer">
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleImageSelect}
-                                    className="hidden"
-                                />
-                                <ImagePlus className="h-4 w-4 hover:text-[var(--matrix-green)]" />
+
+                        {/* Selector de imagen */}
+                        <div className="flex flex-col">
+                            <label className="text-[var(--matrix-green)] mb-1 flex items-center">
+                                <span>Imagen</span>
+                                <span className="ml-2 cursor-pointer">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageSelect}
+                                        className="hidden"
+                                        id="image-upload"
+                                    />
+                                    <label htmlFor="image-upload">
+                                        <ImagePlus className="h-4 w-4 hover:text-[var(--matrix-green)]" />
+                                    </label>
+                                </span>
                             </label>
                             {selectedImage && (
-                                <span className="text-xs text-[var(--matrix-green)]">
+                                <div className="mt-1 text-xs text-[var(--matrix-green)] p-2 border border-dashed border-[var(--matrix-green)] rounded">
                                     {selectedImage.name}
-                                </span>
+                                </div>
                             )}
                         </div>
-                        <div className="flex gap-2">
+
+                        {/* Botones de acción */}
+                        <div className="flex justify-between items-center pt-2">
+                            <Button
+                                onClick={() => setIsCreating(false)}
+                                className="bg-transparent border-2 border-[var(--matrix-green)] text-[var(--matrix-green)] hover:bg-[var(--matrix-green)] hover:text-black"
+                            >
+                                Cancelar
+                            </Button>
                             <Button
                                 onClick={handleSubmit}
-                                className="text-xs py-1 px-2 h-auto bg-[var(--matrix-green)] text-black hover:bg-[var(--matrix-dark-green)] hover:text-[var(--matrix-green)]"
-                                disabled={loading || !selectedTopic || !selectedCommunityId}
+                                className="bg-[var(--matrix-green)] text-black hover:bg-opacity-80"
+                                disabled={loading || !selectedTopic || !selectedCommunityId || !newPost.trim()}
                             >
-                                {loading ? "Subiendo..." : "Post"} <Send className="h-3 w-3 ml-1" />
+                                {loading ? (
+                                    <div className="flex items-center">
+                                        <span className="mr-2 animate-pulse">Publicando...</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        Publicar <Send className="h-3 w-3 ml-1" />
+                                    </>
+                                )}
                             </Button>
                         </div>
                     </div>
-                </>
+                </div>
             ) : (
-                <Button onClick={() => setIsCreating(true)} className="text-xs py-1 px-2 h-auto bg-[var(--matrix-green)] text-black hover:bg-[var(--matrix-dark-green)]">
-                    Crear Post
+                <Button
+                    onClick={() => setIsCreating(true)}
+                    className="bg-[var(--matrix-green)] text-black hover:bg-opacity-80 w-full py-2"
+                >
+                    Crear Nuevo Post
                 </Button>
             )}
         </div>
