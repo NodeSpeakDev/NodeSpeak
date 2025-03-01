@@ -5,6 +5,7 @@ import { WalletConnect } from '@/components/WalletConnect';
 import { SystemStatus } from '@/components/SystemStatus';
 import { UserPosts } from '@/components/UserPosts';
 import { CreatePost } from '@/components/CreatePost';
+import { Communities } from '@/components/Communities';
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useMemo } from "react";
 import { ethers, Contract } from "ethers";
@@ -55,7 +56,7 @@ export default function Home() {
         postCount: number;
         creator: string;
         isMember?: boolean;
-        isCreator?: boolean; // Agregar esta línea
+        isCreator?: boolean;
         memberCount?: number;
         topics: string[];
     }
@@ -78,14 +79,14 @@ export default function Home() {
         try {
             // Try primary gateway
             const response = await axios.get(`${PINATA_GATEWAY}${cid}`);
-            const data = response.data;
+            const { data } = response;
             contentCache.set(cid, data);
             return data;
         } catch (error) {
             try {
                 // Try backup gateway
                 const response = await axios.get(`${BACKUP_GATEWAY}${cid}`);
-                const data = response.data;
+                const { data } = response;
                 contentCache.set(cid, data);
                 return data;
             } catch (backupError) {
@@ -97,7 +98,9 @@ export default function Home() {
 
     // Get communities from contract
     const fetchCommunities = async () => {
-        if (isLoading) return;
+        if (isLoading) {
+            return;
+        }
 
         try {
             setIsLoading(true);
@@ -149,7 +152,15 @@ export default function Home() {
                 // Check if user is a member or the creator
                 let isMember = false;
                 let memberCount = 0;
-                const isCreator = community.creator.toLowerCase() === userAddress.toLowerCase();
+                // Usar una función más robusta:
+                const isAddressEqual = (addr1: string, addr2: string) => {
+                    if (!addr1 || !addr2) {
+                        return false;
+                    }
+                    return addr1.toLowerCase() === addr2.toLowerCase();
+                };
+
+                const isCreator = isAddressEqual(community.creator, userAddress);
 
                 try {
                     if (userAddress) {
@@ -173,6 +184,12 @@ export default function Home() {
                 } catch (err) {
                     console.error(`Error getting topics for community ${id}:`, err);
                 }
+
+                // Dentro de fetchCommunities, añadir logs detallados:
+                console.log(`Community ${id} - Creator: ${community.creator}`);
+                console.log(`Current user: ${userAddress}`);
+                console.log(`Is creator: ${isCreator}`);
+                console.log(`Is member (from contract): ${await contract.isMember(id, userAddress)}`);
 
                 return {
                     id,
@@ -206,7 +223,9 @@ export default function Home() {
 
     // Get posts for a specific community
     const fetchPostsForCommunity = async (communityId: string) => {
-        if (isLoading) return;
+        if (isLoading) {
+            return;
+        }
 
         try {
             setIsLoading(true);
@@ -290,7 +309,6 @@ export default function Home() {
     };
 
     // Join a community
-    // Join a community
     const handleJoinCommunity = async (communityId: string) => {
         if (!provider) {
             alert("No Ethereum provider connected.");
@@ -298,7 +316,7 @@ export default function Home() {
         }
 
         try {
-            setJoiningCommunityId(communityId); // Nuevo estado para mostrar spinner
+            setJoiningCommunityId(communityId);
 
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
@@ -308,7 +326,7 @@ export default function Home() {
             const isMember = await contract.isMember(communityId, userAddress);
 
             if (isMember) {
-                console.log("Ya eres miembro de esta comunidad.");
+                console.log("You are already a member of this community.");
 
                 // Actualizar el estado localmente sin hacer la transacción
                 setCommunities(prev => prev.map(community => {
@@ -328,6 +346,13 @@ export default function Home() {
 
             // Update community list
             fetchCommunities();
+
+            // Auto navigate to posts view if join was successful
+            // Set timeout to give time for the state to update
+            setTimeout(() => {
+                setShowCommunityList(false);
+            }, 1000);
+
         } catch (error: any) {
             console.error("Error joining community:", error);
 
@@ -349,7 +374,7 @@ export default function Home() {
             setJoiningCommunityId(null);
         }
     };
-    // Leave a community
+
     // Leave a community
     const handleLeaveCommunity = async (communityId: string) => {
         if (!provider) {
@@ -365,7 +390,7 @@ export default function Home() {
         }
 
         try {
-            setLeavingCommunityId(communityId); // Nuevo estado para mostrar spinner
+            setLeavingCommunityId(communityId);
 
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
@@ -414,7 +439,6 @@ export default function Home() {
     };
 
     // Create a new community
-    // Create a new community
     const handleCreateCommunity = async (name: string, description: string, communityTopics: string[]) => {
         if (!provider) {
             alert("No Ethereum provider connected.");
@@ -422,7 +446,7 @@ export default function Home() {
         }
 
         try {
-            setCreatingCommunity(true); // Para mostrar el estado de carga
+            setCreatingCommunity(true);
 
             // Upload data to IPFS
             const contentCID = await uploadCommunityData(name, description);
@@ -454,7 +478,7 @@ export default function Home() {
                     alert(waitTimeMessage);
 
                     // Añade mensaje en consola para desarrolladores
-                    console.log("Para desarrollo: Considera modificar el contrato a 5 minutos de cooldown y redeployarlo.");
+                    console.log("For development: Consider modifying the contract to a 5-minute cooldown and redeploying.");
                 } else {
                     // Generic error for other cases
                     alert(`Transaction would fail: ${estimateError.message}`);
@@ -493,7 +517,6 @@ export default function Home() {
     };
 
     // Modified function to create posts in communities
-    // Modified function to create posts in communities
     const handleCreatePost = async (communityId: string, imageCID: string | null, textCID: string, topic: string) => {
         if (!provider) {
             alert("No Ethereum provider connected.");
@@ -503,8 +526,6 @@ export default function Home() {
         try {
             const signer = await provider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
-
-
 
             // First, check if the user is a member of the community
             try {
@@ -579,10 +600,25 @@ export default function Home() {
     };
 
     useEffect(() => {
+        const loadUserData = async () => {
+            if (provider) {
+                try {
+                    const signer = await provider.getSigner();
+                    const address = await signer.getAddress();
+                    console.log("User address loaded:", address);
+
+                    // Solo cargar comunidades después de tener la dirección confirmada
+                    await fetchCommunities();
+                } catch (err) {
+                    console.error("Error getting user address:", err);
+                }
+            }
+        };
+
         if (isConnected) {
-            fetchCommunities();
+            loadUserData();
         }
-    }, [isConnected]);
+    }, [isConnected, provider]);
 
     return (
         <div className="min-h-screen relative">
@@ -649,148 +685,21 @@ export default function Home() {
 
                         {/* Communities view */}
                         {showCommunityList && !isLoading && (
-                            <div className="terminal-window p-6 rounded-lg">
-                                {isCreatingCommunity ? (
-                                    <div className="border-2 border-[var(--matrix-green)] rounded-lg p-6 bg-black">
-                                        <h2 className="text-xl font-mono mb-4 text-center text-[var(--matrix-green)]">
-                                            Create New Community
-                                        </h2>
-                                        <form className="space-y-4">
-                                            <div className="flex flex-col">
-                                                <label className="text-[var(--matrix-green)] mb-1">Community Name</label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Enter community name"
-                                                    className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded"
-                                                    id="community-name"
-                                                />
-                                            </div>
-
-                                            <div className="flex flex-col">
-                                                <label className="text-[var(--matrix-green)] mb-1">Description</label>
-                                                <textarea
-                                                    placeholder="What is this community about?"
-                                                    className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded h-32"
-                                                    id="community-description"
-                                                />
-                                            </div>
-
-                                            <div className="flex flex-col">
-                                                <label className="text-[var(--matrix-green)] mb-1">Topics (comma separated)</label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="General, Technology, Blockchain"
-                                                    className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded"
-                                                    id="community-topics"
-                                                />
-                                                <p className="text-xs text-gray-400 mt-1">At least one topic is required</p>
-                                            </div>
-
-                                            <Button
-                                                type="button"
-                                                onClick={() => {
-                                                    const nameElement = document.getElementById('community-name') as HTMLInputElement;
-                                                    const descriptionElement = document.getElementById('community-description') as HTMLTextAreaElement;
-                                                    const topicsElement = document.getElementById('community-topics') as HTMLInputElement;
-
-                                                    const name = nameElement?.value || "";
-                                                    const description = descriptionElement?.value || "";
-                                                    const topicString = topicsElement?.value || "General";
-                                                    const topicsArray = topicString.split(',').map(t => t.trim()).filter(t => t);
-
-                                                    if (name && description && topicsArray.length > 0) {
-                                                        handleCreateCommunity(name, description, topicsArray);
-                                                    } else {
-                                                        alert("Please fill all fields");
-                                                    }
-                                                }}
-                                                className="w-full bg-[var(--matrix-green)] text-black py-2 rounded font-bold mt-4"
-                                                disabled={creatingCommunity}
-                                            >
-                                                {creatingCommunity ? (
-                                                    <div className="flex items-center justify-center">
-                                                        <span className="mr-2 animate-pulse">Creating...</span>
-                                                    </div>
-                                                ) : "Create Community"}
-                                            </Button>
-                                        </form>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <h2 className="text-xl font-mono mb-4 text-center text-[var(--matrix-green)]">
-                                            Communities
-                                        </h2>
-                                        <div className="space-y-4">
-                                            {communities.length === 0 ? (
-                                                <p className="text-center text-gray-400">No communities found. Create the first one!</p>
-                                            ) : (
-                                                communities.map((community) => (
-                                                    <div
-                                                        key={community.id}
-                                                        className={`border-2 rounded-lg p-4 flex flex-col bg-black cursor-pointer transition-all ${selectedCommunityId === community.id
-                                                            ? "border-[var(--matrix-green)] border-4"
-                                                            : "border-[var(--matrix-green)] hover:border-opacity-80"
-                                                            }`}
-                                                        onClick={() => handleSelectCommunity(community.id)}
-                                                    >
-                                                        <div className="flex justify-between items-start mb-3">
-                                                            <h3 className="text-xl font-bold text-white">{community.name}</h3>
-                                                            <div className="flex space-x-2">
-                                                                <span className="text-gray-400 text-sm">{community.memberCount || 0} members</span>
-                                                                <span className="text-gray-400 text-sm">{community.postCount} posts</span>
-                                                            </div>
-                                                        </div>
-
-                                                        <p className="text-gray-300 mb-3">
-                                                            {community.description.length > 100
-                                                                ? community.description.substring(0, 100) + "..."
-                                                                : community.description}
-                                                        </p>
-
-                                                        <div className="flex justify-between items-center">
-                                                            <div className="flex space-x-2">
-                                                                <span className="text-sm text-[var(--matrix-green)]">
-                                                                    {community.topics.length} topics
-                                                                </span>
-                                                            </div>
-
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    if (community.isMember) {
-                                                                        handleLeaveCommunity(community.id);
-                                                                    } else {
-                                                                        handleJoinCommunity(community.id);
-                                                                    }
-                                                                }}
-                                                                className={`px-3 py-1 rounded text-sm font-medium ${joiningCommunityId === community.id || leavingCommunityId === community.id
-                                                                    ? "bg-gray-600 text-white"
-                                                                    : community.isMember
-                                                                        ? "bg-red-800 hover:bg-red-700 text-white"
-                                                                        : "bg-[var(--matrix-green)] hover:bg-opacity-80 text-black"
-                                                                    }`}
-                                                                disabled={joiningCommunityId === community.id || leavingCommunityId === community.id || community.isCreator}
-                                                            >
-                                                                {joiningCommunityId === community.id ? (
-                                                                    <span className="animate-pulse">Joining...</span>
-                                                                ) : leavingCommunityId === community.id ? (
-                                                                    <span className="animate-pulse">Leaving...</span>
-                                                                ) : community.isCreator ? (
-                                                                    "Creator"
-                                                                ) : community.isMember ? (
-                                                                    "Leave"
-                                                                ) : (
-                                                                    "Join"
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                            <Communities
+                                communities={communities}
+                                isCreatingCommunity={isCreatingCommunity}
+                                setIsCreatingCommunity={setIsCreatingCommunity}
+                                selectedCommunityId={selectedCommunityId}
+                                handleSelectCommunity={handleSelectCommunity}
+                                handleCreateCommunity={handleCreateCommunity}
+                                handleJoinCommunity={handleJoinCommunity}
+                                handleLeaveCommunity={handleLeaveCommunity}
+                                isLoading={isLoading}
+                                creatingCommunity={creatingCommunity}
+                                joiningCommunityId={joiningCommunityId}
+                                leavingCommunityId={leavingCommunityId}
+                                setShowCommunityList={setShowCommunityList}
+                            />
                         )}
 
                         {/* Posts view */}

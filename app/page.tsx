@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { Github, X, Mail } from "lucide-react";
 import { WalletConnect } from "@/components/WalletConnect";
-import Communities from "@/components/Communities";
 import { useWalletContext } from "@/contexts/WalletContext";
 import { useRouter } from 'next/navigation';
 

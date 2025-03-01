@@ -1,259 +1,227 @@
 "use client";
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
-import { Github, Twitter, Terminal, Users, Plus, ArrowRight, Wifi, X } from 'lucide-react';
 
-
-function UserStatus() {
-    return (
-        <div className="flex items-center space-x-2 px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-lg">
-            <Wifi className="w-4 h-4 text-green-500 animate-pulse" />
-            <span className="text-green-400">connected as: </span>
-            <span className="text-green-500 font-bold">user_0x1337</span>
-        </div>
-    );
-}
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Contract } from "ethers";
+import axios from 'axios';
 
 interface Community {
-    id: number;
+    id: string;
     name: string;
-    members: number;
     description: string;
+    topicCount: number;
+    postCount: number;
+    creator: string;
+    isMember?: boolean;
+    isCreator?: boolean;
+    memberCount?: number;
     topics: string[];
 }
 
-function Communities() {
-    const router = useRouter();
-    
-    const [communities, setCommunities] = useState<Community[]>([
-        {
-            id: 1,
-            name: 'NodeSpeak',
-            members: 2,
-            description: 'Comunidad de desarrollo del foro descentralizado',
-            topics: ['Desarrollo', 'Blockchain', 'EVM']
-        },
-    ]);
+interface CommunitiesProps {
+    communities: Community[];
+    isCreatingCommunity: boolean;
+    setIsCreatingCommunity: (value: boolean) => void;
+    selectedCommunityId: string | null;
+    handleSelectCommunity: (communityId: string) => void;
+    handleCreateCommunity: (name: string, description: string, topics: string[]) => Promise<void>;
+    handleJoinCommunity: (communityId: string) => Promise<void>;
+    handleLeaveCommunity: (communityId: string) => Promise<void>;
+    isLoading: boolean;
+    creatingCommunity: boolean;
+    joiningCommunityId: string | null;
+    leavingCommunityId: string | null;
+    setShowCommunityList: (show: boolean) => void;
+}
 
-    const [isCreating, setIsCreating] = useState(false);
-    const [newCommunity, setNewCommunity] = useState({
-        name: '',
-        description: '',
-        topics: ['', '', ''] // Predefinimos 3 topics vacíos
-    });
+export const Communities = ({
+    communities,
+    isCreatingCommunity,
+    setIsCreatingCommunity,
+    selectedCommunityId,
+    handleSelectCommunity,
+    handleCreateCommunity,
+    handleJoinCommunity,
+    handleLeaveCommunity,
+    isLoading,
+    creatingCommunity,
+    joiningCommunityId,
+    leavingCommunityId,
+    setShowCommunityList
+}: CommunitiesProps) => {
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setNewCommunity({
-            ...newCommunity,
-            [name]: value
-        });
-    };
+    // Function to handle clicking on a community
+    const handleCommunityClick = (community: Community) => {
+        handleSelectCommunity(community.id);
 
-    const handleTopicChange = (index: number, value: string) => {
-        const updatedTopics = [...newCommunity.topics];
-        updatedTopics[index] = value;
-        setNewCommunity({
-            ...newCommunity,
-            topics: updatedTopics
-        });
-    };
-
-    const handleCreateCommunity = (e: React.FormEvent) => {
-        e.preventDefault();
-
-        // Validación básica
-        if (!newCommunity.name.trim()) {
-            alert("Por favor, ingresa un nombre para la comunidad.");
-            return;
+        // If the user is a member or creator, navigate to posts view
+        if (community.isMember || community.isCreator) {
+            setShowCommunityList(false); // Switch to posts view
+        } else {
+            // If not a member, simply select the community but stay in community view
+            // This will highlight the community but not navigate away
         }
-
-        // Filtrar topics vacíos
-        const filteredTopics = newCommunity.topics.filter(topic => topic.trim() !== '');
-
-        // Crear nueva comunidad
-        const newCommunityObj = {
-            id: communities.length + 1,
-            name: newCommunity.name,
-            description: newCommunity.description,
-            members: 1, // El creador es el primer miembro
-            topics: filteredTopics
-        };
-
-        setCommunities([...communities, newCommunityObj]);
-
-        // Reiniciar el formulario
-        setNewCommunity({
-            name: '',
-            description: '',
-            topics: ['', '', '']
-        });
-
-        setIsCreating(false);
-    };
-
-    const handleJoinCommunity = () => {
-        router.push('/foro');
     };
 
     return (
-        <div className="container mx-auto px-6 pt-8 relative z-10">
-            <div className="max-w-4xl mx-auto">
-                {/* Header Actions */}
-                <div className="flex justify-between items-center mb-8">
-                    <div className="flex items-center space-x-4">
-                        <a
-                            href="/"
-                            className="text-green-400 hover:text-green-300 transition-colors"
-                        >
-                            <span className="flex items-center space-x-2">
-                                <Terminal className="w-5 h-5" />
-                                <span>cd ..</span>
-                            </span>
-                        </a>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                        <button
-                            onClick={() => setIsCreating(true)}
-                            className="flex items-center space-x-2 px-4 py-2 bg-green-500/20 border border-green-500 
-                         text-green-400 hover:bg-green-500/30 transition-all duration-300 rounded"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>Create Community</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Formulario para crear comunidad */}
-                {isCreating && (
-                    <div className="mb-6 bg-black/90 border border-green-500/50 rounded-lg p-6 shadow-[0_0_15px_rgba(0,255,0,0.2)]">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-green-400 font-bold text-xl">
-                                <span className="text-green-500">&gt;</span> create_community.sh
-                            </h3>
-                            <button
-                                onClick={() => setIsCreating(false)}
-                                className="text-green-400 hover:text-green-300"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
+        <div className="terminal-window p-6 rounded-lg">
+            {isCreatingCommunity ? (
+                <div className="border-2 border-[var(--matrix-green)] rounded-lg p-6 bg-black">
+                    <h2 className="text-xl font-mono mb-4 text-center text-[var(--matrix-green)]">
+                        Create New Community
+                    </h2>
+                    <form className="space-y-4">
+                        <div className="flex flex-col">
+                            <label className="text-[var(--matrix-green)] mb-1">Community Name</label>
+                            <input
+                                type="text"
+                                placeholder="Enter community name"
+                                className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded"
+                                id="community-name"
+                            />
                         </div>
 
-                        <form onSubmit={handleCreateCommunity} className="space-y-4">
-                            <div className="terminal-prompt">
-                                <label className="flex items-baseline mb-1">
-                                    <span className="text-green-500 mr-2">$</span>
-                                    <span className="text-green-400 mr-2">name:</span>
-                                    <input
-                                        type="text"
-                                        name="name"
-                                        value={newCommunity.name}
-                                        onChange={handleInputChange}
-                                        className="bg-black text-green-300 border-b border-green-500/50 focus:border-green-500 
-                                        outline-none px-2 py-1 w-full"
-                                        placeholder="community_name"
-                                    />
-                                </label>
-                            </div>
+                        <div className="flex flex-col">
+                            <label className="text-[var(--matrix-green)] mb-1">Description</label>
+                            <textarea
+                                placeholder="What is this community about?"
+                                className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded h-32"
+                                id="community-description"
+                            />
+                        </div>
 
-                            <div className="terminal-prompt">
-                                <label className="flex items-baseline mb-1">
-                                    <span className="text-green-500 mr-2">$</span>
-                                    <span className="text-green-400 mr-2">description:</span>
-                                    <textarea
-                                        name="description"
-                                        value={newCommunity.description}
-                                        onChange={handleInputChange}
-                                        className="bg-black text-green-300 border border-green-500/50 focus:border-green-500 
-                                        outline-none px-2 py-1 w-full h-20 resize-none"
-                                        placeholder="Community description..."
-                                    />
-                                </label>
-                            </div>
+                        <div className="flex flex-col">
+                            <label className="text-[var(--matrix-green)] mb-1">Topics (comma separated)</label>
+                            <input
+                                type="text"
+                                placeholder="General, Technology, Blockchain"
+                                className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded"
+                                id="community-topics"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">At least one topic is required</p>
+                        </div>
 
-                            <div className="space-y-2">
-                                <div className="flex items-center">
-                                    <span className="text-green-500 mr-2">$</span>
-                                    <span className="text-green-400">define_topics:</span>
-                                </div>
+                        <Button
+                            type="button"
+                            onClick={() => {
+                                const nameElement = document.getElementById('community-name') as HTMLInputElement;
+                                const descriptionElement = document.getElementById('community-description') as HTMLTextAreaElement;
+                                const topicsElement = document.getElementById('community-topics') as HTMLInputElement;
 
-                                {newCommunity.topics.map((topic, index) => (
-                                    <div key={index} className="terminal-prompt ml-6 flex items-baseline">
-                                        <span className="text-green-500 mr-2">&gt;</span>
-                                        <span className="text-green-400 mr-2">topic_{index + 1}:</span>
-                                        <input
-                                            type="text"
-                                            value={topic}
-                                            onChange={(e) => handleTopicChange(index, e.target.value)}
-                                            className="bg-black text-green-300 border-b border-green-500/50 focus:border-green-500 
-                                            outline-none px-2 py-1 flex-1"
-                                            placeholder={`topic_${index + 1}`}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
+                                const name = nameElement?.value || "";
+                                const description = descriptionElement?.value || "";
+                                const topicString = topicsElement?.value || "General";
+                                const topicsArray = topicString.split(',').map(t => t.trim()).filter(t => t);
 
-                            <div className="flex justify-end pt-4">
-                                <button
-                                    type="submit"
-                                    className="flex items-center space-x-2 px-4 py-2 bg-green-500/20 border border-green-500 
-                                    text-green-400 hover:bg-green-500/30 transition-all duration-300 rounded"
-                                >
-                                    <span>Execute</span>
-                                    <Terminal className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
-
-                {/* Communities List */}
-                <div className="space-y-4">
-                    {communities.map(community => (
-                        <div
-                            key={community.id}
-                            className="bg-black/80 backdrop-blur-sm border border-green-500/30 rounded-lg p-6
-                         hover:border-green-500/50 transition-all duration-300"
+                                if (name && description && topicsArray.length > 0) {
+                                    handleCreateCommunity(name, description, topicsArray);
+                                } else {
+                                    alert("Please fill in all fields");
+                                }
+                            }}
+                            className="w-full bg-[var(--matrix-green)] text-black py-2 rounded font-bold mt-4"
+                            disabled={creatingCommunity}
                         >
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h3 className="text-xl font-bold text-green-400 mb-2">{community.name}</h3>
-                                    <p className="text-green-300/70 mb-4">{community.description}</p>
-
-                                    {/* Mostrar los tópicos */}
-                                    {community.topics && community.topics.length > 0 && (
-                                        <div className="flex flex-wrap gap-2 mb-3">
-                                            {community.topics.map((topic, index) => (
-                                                <span
-                                                    key={index}
-                                                    className="text-xs text-green-300 bg-green-500/10 border border-green-500/30 
-                                                    rounded px-2 py-1"
-                                                >
-                                                    #{topic}
+                            {creatingCommunity ? (
+                                <div className="flex items-center justify-center">
+                                    <span className="mr-2 animate-pulse">Creating...</span>
+                                </div>
+                            ) : "Create Community"}
+                        </Button>
+                    </form>
+                </div>
+            ) : (
+                <div>
+                    <h2 className="text-xl font-mono mb-4 text-center text-[var(--matrix-green)]">
+                        Communities
+                    </h2>
+                    <div className="space-y-4">
+                        {communities.length === 0 ? (
+                            <p className="text-center text-gray-400">No communities found. Create the first one!</p>
+                        ) : (
+                            communities.map((community) => (
+                                <div
+                                    key={community.id}
+                                    className={`border-2 rounded-lg p-4 flex flex-col bg-black cursor-pointer transition-all ${selectedCommunityId === community.id
+                                        ? "border-[var(--matrix-green)] border-4"
+                                        : "border-[var(--matrix-green)] hover:border-opacity-80"
+                                        }`}
+                                    onClick={() => handleCommunityClick(community)}
+                                >
+                                    <div className="flex justify-between items-start mb-3">
+                                        <h3 className="text-xl font-bold text-white">{community.name}</h3>
+                                        <div className="flex flex-col items-end">
+                                            <div className="flex space-x-2">
+                                                <span className="text-gray-400 text-sm">
+                                                    {community.memberCount || 0} members
+                                                    {community.isCreator && " (including you)"}
                                                 </span>
-                                            ))}
+                                            </div>
+                                            <span className="text-gray-400 text-sm">{community.postCount} posts</span>
                                         </div>
-                                    )}
+                                    </div>
 
-                                    <div className="flex items-center space-x-2 text-green-400/60">
-                                        <Users className="w-4 h-4" />
-                                        <span>{community.members} members</span>
+                                    <p className="text-gray-300 mb-3">
+                                        {community.description.length > 100
+                                            ? community.description.substring(0, 100) + "..."
+                                            : community.description}
+                                    </p>
+
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center space-x-3">
+                                            <span className="text-sm text-[var(--matrix-green)]">
+                                                {community.topics.length} topics
+                                            </span>
+                                            {/* Status badges */}
+                                            {community.isCreator && (
+                                                <span className="px-2 py-1 rounded text-xs font-medium bg-purple-800 text-white">
+                                                    Creator
+                                                </span>
+                                            )}
+                                            {community.isMember && !community.isCreator && (
+                                                <span className="px-2 py-1 rounded text-xs font-medium bg-blue-700 text-white">
+                                                    Member
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Join/Leave button - Only show for non-creators */}
+                                        {!community.isCreator && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (community.isMember) {
+                                                        handleLeaveCommunity(community.id);
+                                                    } else {
+                                                        handleJoinCommunity(community.id);
+                                                    }
+                                                }}
+                                                className={`px-3 py-1 rounded text-sm font-medium ${joiningCommunityId === community.id || leavingCommunityId === community.id
+                                                    ? "bg-gray-600 text-white"
+                                                    : community.isMember
+                                                        ? "bg-red-800 hover:bg-red-700 text-white"
+                                                        : "bg-[var(--matrix-green)] hover:bg-opacity-80 text-black"
+                                                    }`}
+                                                disabled={joiningCommunityId === community.id || leavingCommunityId === community.id}
+                                            >
+                                                {joiningCommunityId === community.id ? (
+                                                    <span className="animate-pulse">Joining...</span>
+                                                ) : leavingCommunityId === community.id ? (
+                                                    <span className="animate-pulse">Leaving...</span>
+                                                ) : community.isMember ? (
+                                                    "Leave"
+                                                ) : (
+                                                    "Join"
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                                <button
-                                    onClick={handleJoinCommunity}
-                                    className="flex items-center space-x-2 px-4 py-2 bg-green-500/20 border border-green-500 
-                             text-green-400 hover:bg-green-500/30 transition-all duration-300 rounded"
-                                >
-                                    <span>Join</span>
-                                    <ArrowRight className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                            ))
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
-}
-export default Communities;
+};

@@ -162,7 +162,7 @@ export const CreatePost = ({
                                     value={community.id}
                                     disabled={!community.isMember}
                                 >
-                                    {community.name} {!community.isMember ? "(Unirse primero)" : ""}
+                                    {community.name} {community.isMember ? "" : "(Unirse primero)"}
                                 </option>
                             ))}
                         </select>
