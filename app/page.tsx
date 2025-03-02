@@ -55,7 +55,7 @@ function Landing() {
                 <MatrixRain />
                 <div className="container mx-auto px-6 flex items-center justify-center h-screen relative z-10">
                     <p className="text-[var(--matrix-green)]">
-                        <TypingEffect text="Conectado. Redirigiendo a foro..." />
+                        <TypingEffect text="Redirigiendo to forum..." />
                     </p>
                 </div>
             </div>

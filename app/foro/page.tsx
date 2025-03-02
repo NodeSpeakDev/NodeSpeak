@@ -517,7 +517,8 @@ export default function Home() {
     };
 
     // Modified function to create posts in communities
-    const handleCreatePost = async (communityId: string, imageCID: string | null, textCID: string, topic: string) => {
+    const handleCreatePost = async (
+        communityId: string, imageCID: string | null, textCID: string, topic: string, title: string) => {
         if (!provider) {
             alert("No Ethereum provider connected.");
             return;
@@ -548,7 +549,7 @@ export default function Home() {
                 // Attempt to estimate gas first to catch potential errors
                 await contract.createPost.estimateGas(
                     communityId,
-                    "Terminal v1", // Post title
+                    title, // Post title
                     textCID,
                     imageCID ?? "",
                     topic
@@ -557,7 +558,7 @@ export default function Home() {
                 // If estimation succeeds, proceed with the transaction
                 const tx = await contract.createPost(
                     communityId,
-                    "Terminal v1", // Post title
+                    title,
                     textCID,
                     imageCID ?? "",
                     topic
@@ -727,18 +728,11 @@ export default function Home() {
                                         )}
                                         <UserPosts
                                             fetchPostsFromContract={fetchPostsFromContract}
-                                            posts={posts.map(post => ({
-                                                id: post.id,
-                                                content: post.content,
-                                                timestamp: post.timestamp || Date.now(),
-                                                topic: post.topic || "General",
-                                                imageUrl: post.imageUrl,
-                                                communityId: post.communityId || "1",
-                                                title: post.title,
-                                                likeCount: post.likeCount,
-                                                commentCount: post.commentCount
-                                            }))}
+                                            posts={posts}
                                             communities={communities}
+                                            forumAddress={forumAddress}
+                                            forumABI={forumABI}
+                                            provider={provider}
                                         />
                                     </div>
                                 )}
