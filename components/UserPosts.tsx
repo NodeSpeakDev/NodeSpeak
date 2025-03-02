@@ -77,9 +77,15 @@ export const UserPosts = ({
 
     useEffect(() => {
         if (!hasLoaded) {
-            fetchPostsFromContract().then(() => {
-                setHasLoaded(true);
-            });
+            fetchPostsFromContract()
+                .then(() => {
+                    setHasLoaded(true);
+                })
+                .catch((error) => {
+                    console.error("Error fetching posts:", error);
+                    // Importante: establecer hasLoaded a true para evitar loops infinitos
+                    setHasLoaded(true);
+                });
         }
     }, [hasLoaded, fetchPostsFromContract]);
 
@@ -199,37 +205,37 @@ export const UserPosts = ({
             });
         }
     };
-    
+
     const likePost = async (postId: string) => {
         if (!isConnected || !walletProvider) {
             alert("Please connect your wallet to like posts");
             return;
         }
-        
+
         // Don't allow multiple simultaneous likes on the same post
         if (likingPost[postId]) return;
-        
+
         try {
             setLikingPost({
                 ...likingPost,
                 [postId]: true
             });
-            
+
             // Get a signer from the provider
             const signer = await walletProvider.getSigner();
-            
+
             // Create a contract instance with the signer
             const contract = new Contract(forumAddress, forumABI, signer);
             console.log("Submitting like transaction for post:", postId);
-            
+
             // Call the likePost function on the smart contract
             const tx = await contract.likePost(postId);
             console.log("Like transaction submitted:", tx.hash);
-            
+
             // Wait for transaction confirmation
             const receipt = await tx.wait();
             console.log("Like transaction confirmed:", receipt);
-            
+
             // Force refresh posts to update the like count
             await fetchPostsFromContract();
         } catch (error) {
@@ -313,7 +319,7 @@ export const UserPosts = ({
                     )}
 
                     <div className="flex items-center mt-4 space-x-4 text-xs text-[var(--matrix-green)]/70">
-                        <button 
+                        <button
                             onClick={() => likePost(post.id)}
                             className="flex items-center space-x-1 text-[var(--matrix-green)] hover:text-green-400 transition-colors"
                             disabled={likingPost[post.id]}
@@ -323,7 +329,7 @@ export const UserPosts = ({
                             </span>
                             <span>{post.likeCount} likes</span>
                         </button>
-                        <button 
+                        <button
                             onClick={() => toggleComments(post.id)}
                             className="flex items-center space-x-2 text-[var(--matrix-green)] hover:text-green-400 transition-colors"
                         >

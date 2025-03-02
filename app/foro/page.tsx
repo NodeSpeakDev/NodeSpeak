@@ -72,28 +72,42 @@ export default function Home() {
 
     // Helper function to fetch IPFS content with caching and fallback
     const fetchFromIPFS = async (cid: any, useCache = true) => {
+        if (!cid) return null;
+
+        // Si ya está en caché, devolver el valor
         if (useCache && contentCache.has(cid)) {
             return contentCache.get(cid);
         }
 
-        try {
-            // Try primary gateway
-            const response = await axios.get(`${PINATA_GATEWAY}${cid}`);
-            const { data } = response;
-            contentCache.set(cid, data);
-            return data;
-        } catch (error) {
+        // Lista de intentos máximos y gateways
+        const maxRetries = 2;
+        const gateways = [PINATA_GATEWAY, BACKUP_GATEWAY];
+
+        // Intentar con cada gateway
+        for (const gateway of gateways) {
             try {
-                // Try backup gateway
-                const response = await axios.get(`${BACKUP_GATEWAY}${cid}`);
+                const response = await axios.get(`${gateway}${cid}`, {
+                    timeout: 5000,  // Timeout de 5 segundos
+                    validateStatus: (status) => status === 200 // Solo aceptar 200 OK
+                });
+
                 const { data } = response;
                 contentCache.set(cid, data);
                 return data;
-            } catch (backupError) {
-                console.error(`Error fetching from both gateways for CID ${cid}:`, backupError);
-                return null;
+            } catch (error) {
+                // Si hay error, probar con la siguiente gateway
+                console.warn(`Failed to fetch from ${gateway} for CID ${cid}:`, error);
+                continue;
             }
         }
+
+        // Si todos los intentos fallan, devolver un valor por defecto para evitar errores
+        console.error(`Failed to fetch content for CID ${cid} from all gateways`);
+
+        // Cachear un valor por defecto para evitar intentos repetidos
+        const defaultContent = "Content unavailable";
+        contentCache.set(cid, defaultContent);
+        return defaultContent;
     };
 
     // Get communities from contract
@@ -300,6 +314,7 @@ export default function Home() {
             setIsLoading(false);
         }
     };
+
 
     // Original function modified for compatibility
     const fetchPostsFromContract = async () => {

@@ -118,7 +118,6 @@ export const CreatePost = ({
     onCommunitySelect
 }: CreatePostProps) => {
 
-    const [postTitle, setPostTitle] = useState("");
     const [newPost, setNewPost] = useState("<p>Write your post here...</p>");
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
@@ -183,10 +182,6 @@ export const CreatePost = ({
 
     const handleSubmit = async () => {
         // Validate title
-        if (!postTitle.trim()) {
-            alert("Please enter a title for your post");
-            return;
-        }
 
         // Extraer el texto plano del HTML para validación
         const tempElement = document.createElement('div');
@@ -222,7 +217,7 @@ export const CreatePost = ({
             const textCid = await pinFileToIPFS(textFile);
             console.log("Text uploaded with CID:", textCid);
 
-            await onSubmit(selectedCommunityId, imageCid, textCid, selectedTopic, postTitle);
+            await onSubmit(selectedCommunityId, imageCid, textCid, selectedTopic, "No title");
             setIsCreating(false);
         } catch (error) {
             console.error("Error in upload process:", error);
@@ -277,19 +272,6 @@ export const CreatePost = ({
                             </div>
                         )}
 
-                        {/* Post Title - New Field */}
-                        <div className="flex flex-col">
-                            <label className="text-[var(--matrix-green)] mb-1">Title</label>
-                            <input
-                                type="text"
-                                value={postTitle}
-                                onChange={(e) => setPostTitle(e.target.value)}
-                                placeholder="Enter post title..."
-                                className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded w-full focus:outline-none focus:ring-1 focus:ring-[var(--matrix-green)]"
-                                maxLength={100}
-                            />
-                        </div>
-
                         {/* Post Content - Rich Text Editor */}
                         <div className="flex flex-col">
                             <label className="text-[var(--matrix-green)] mb-1">Content</label>
@@ -331,7 +313,7 @@ export const CreatePost = ({
                             <Button
                                 onClick={handleSubmit}
                                 className="bg-[var(--matrix-green)] text-black hover:bg-opacity-80"
-                                disabled={loading || !selectedTopic || !selectedCommunityId || !postTitle.trim()}
+                                disabled={loading || !selectedTopic || !selectedCommunityId}
                             >
                                 {loading ? (
                                     <div className="flex items-center">
