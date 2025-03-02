@@ -55,7 +55,7 @@ function Landing() {
                 <MatrixRain />
                 <div className="container mx-auto px-6 flex items-center justify-center h-screen relative z-10">
                     <p className="text-[var(--matrix-green)]">
-                        <TypingEffect text="Redirigiendo to forum..." />
+                        <TypingEffect text="Redirecting to forum..." />
                     </p>
                 </div>
             </div>
@@ -87,7 +87,7 @@ function Landing() {
                             </p>
                             <div className="space-y-4 pl-4">
                                 <h1 className="text-3xl font-bold text-[var(--matrix-green)] animate-pulse">
-                                    Welcome to NodeSpeak v2.0
+                                    Welcome to NodeSpeak v2.0 - (Testnet Sepolia)
                                 </h1>
                                 <p className="text-[var(--matrix-green)] mt-4">
                                     <TypingEffect text="Initializing decentralized communication protocol..." />

@@ -186,10 +186,10 @@ export default function Home() {
                 }
 
                 // Dentro de fetchCommunities, añadir logs detallados:
-                console.log(`Community ${id} - Creator: ${community.creator}`);
-                console.log(`Current user: ${userAddress}`);
-                console.log(`Is creator: ${isCreator}`);
-                console.log(`Is member (from contract): ${await contract.isMember(id, userAddress)}`);
+                // console.log(`Community ${id} - Creator: ${community.creator}`);
+                // console.log(`Current user: ${userAddress}`);
+                // console.log(`Is creator: ${isCreator}`);
+                // console.log(`Is member (from contract): ${await contract.isMember(id, userAddress)}`);
 
                 return {
                     id,

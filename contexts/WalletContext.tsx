@@ -57,7 +57,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         try {
             const accounts = await selectedProvider.request({ method: "eth_requestAccounts" });
-            console.log("Cuentas obtenidas:", accounts);
 
             setAddress(accounts[0]);
 
@@ -72,12 +71,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const disconnect = () => {
-        console.log("Desconectando wallet...");
         setAddress(null);
         setProvider(null);
         setEnsName(null); // Limpiar ENS al desconectar
         sessionStorage.removeItem("wallet_connected");
-        console.log("Wallet desconectada.");
     };
 
     useEffect(() => {
