@@ -167,3 +167,74 @@ body {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+/* Añade estos estilos en tu archivo globals.css o como un módulo CSS */
+
+/* Estilos base para el contenido de los posts */
+.post-content {
+    color: var(--matrix-green);
+    font-family: monospace;
+    line-height: 1.5;
+  }
+  
+  /* Links */
+  .post-content a {
+    color: var(--matrix-green);
+    text-decoration: underline;
+    transition: opacity 0.2s;
+  }
+  
+  .post-content a:hover {
+    opacity: 0.8;
+    text-shadow: 0 0 8px var(--matrix-green);
+  }
+  
+  /* Código */
+  .post-content code {
+    background-color: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-family: monospace;
+  }
+  
+  /* Formato de texto */
+  .post-content strong {
+    font-weight: bold;
+    color: var(--matrix-green);
+  }
+  
+  .post-content em {
+    font-style: italic;
+  }
+  
+  /* Párrafos */
+  .post-content p {
+    margin-bottom: 1rem;
+  }
+  
+  /* Listas */
+  .post-content ul, .post-content ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .post-content li {
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Estilos específicos para Tiptap */
+  .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: rgba(0, 255, 0, 0.5);
+    pointer-events: none;
+    height: 0;
+  }
+  
+  /* Ajustes para el editor cuando tiene focus */
+  .ProseMirror:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 255, 0, 0.4);
+  }
