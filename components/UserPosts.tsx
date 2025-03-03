@@ -16,6 +16,7 @@ interface Post {
     title: string;
     likeCount: number;
     commentCount: number;
+    isActive: boolean;
 }
 
 interface Comment {

@@ -41,6 +41,7 @@ export default function Home() {
         communityId: string;
         likeCount: number;
         commentCount: number;
+        isActive: boolean;
     }
 
     interface Topic {
@@ -73,42 +74,52 @@ export default function Home() {
     // Helper function to fetch IPFS content with caching and fallback
     const fetchFromIPFS = async (cid: any, useCache = true) => {
         if (!cid) return null;
-
+        
         // Si ya está en caché, devolver el valor
         if (useCache && contentCache.has(cid)) {
-            return contentCache.get(cid);
+          return contentCache.get(cid);
         }
-
-        // Lista de intentos máximos y gateways
-        const maxRetries = 2;
-        const gateways = [PINATA_GATEWAY, BACKUP_GATEWAY];
-
+        
+        // Lista de gateways IPFS para probar
+        const gateways = [
+          PINATA_GATEWAY,
+          BACKUP_GATEWAY,
+          "https://ipfs.io/ipfs/",
+          "https://cloudflare-ipfs.com/ipfs/",
+          "https://dweb.link/ipfs/"
+        ];
+        
         // Intentar con cada gateway
         for (const gateway of gateways) {
-            try {
-                const response = await axios.get(`${gateway}${cid}`, {
-                    timeout: 5000,  // Timeout de 5 segundos
-                    validateStatus: (status) => status === 200 // Solo aceptar 200 OK
-                });
-
-                const { data } = response;
-                contentCache.set(cid, data);
-                return data;
-            } catch (error) {
-                // Si hay error, probar con la siguiente gateway
-                console.warn(`Failed to fetch from ${gateway} for CID ${cid}:`, error);
-                continue;
+          try {
+            const response = await axios.get(`${gateway}${cid}`, {
+              timeout: 5000, // Timeout de 5 segundos
+              validateStatus: (status) => status === 200 // Solo aceptar 200 OK
+            });
+            
+            const { data } = response;
+            // Guardar en caché si se obtuvo correctamente
+            contentCache.set(cid, data);
+            return data;
+          } catch (error) {
+            // Si hay error, loguear y probar con la siguiente gateway
+            if (error instanceof Error) {
+                console.warn(`Failed to fetch from ${gateway} for CID ${cid}:`, error.message || 'Unknown error');
+            } else {
+                console.warn(`Failed to fetch from ${gateway} for CID ${cid}: Unknown error`);
             }
+            // Continuar al siguiente gateway
+          }
         }
-
-        // Si todos los intentos fallan, devolver un valor por defecto para evitar errores
+        
+        // Si todos los intentos fallan, devolver un valor por defecto
         console.error(`Failed to fetch content for CID ${cid} from all gateways`);
-
+        
         // Cachear un valor por defecto para evitar intentos repetidos
         const defaultContent = "Content unavailable";
         contentCache.set(cid, defaultContent);
         return defaultContent;
-    };
+      };
 
     // Get communities from contract
     const fetchCommunities = async () => {
@@ -240,24 +251,28 @@ export default function Home() {
         if (isLoading) {
             return;
         }
-
         try {
             setIsLoading(true);
-
             if (!provider) {
                 console.error("No provider found in wallet context.");
                 return;
             }
-
             const contract = new Contract(forumAddress, forumABI, provider);
             const postsFromContract = await contract.getCommunityPosts(communityId);
 
+            // Filtrar solo los posts activos antes de procesarlos
+            const activePosts = postsFromContract.filter((post: any) => {
+                console.log('Post:', post);
+                return post.isActive
+            });
+
+            console.log('Active posts:', activePosts);
+
             const postsParsed = await Promise.all(
-                postsFromContract.map(async (post: any) => {
+                activePosts.map(async (post: any) => {
                     const id = parseInt(post.id.toString(), 10);
                     const { title } = post;
                     let content = "";
-
                     // Use cache for post content
                     const cacheKey = `post_${id}`;
                     if (contentCache.has(cacheKey)) {
@@ -271,13 +286,11 @@ export default function Home() {
                             console.error(`Error getting content for post ${id}`, err);
                         }
                     }
-
                     // Handle image URL with proper gateway
                     let imageUrl = undefined;
                     if (post.imageCID && post.imageCID !== "") {
                         imageUrl = `${BACKUP_GATEWAY}${post.imageCID}`;
                     }
-
                     return {
                         id: id.toString(),
                         title,
@@ -289,15 +302,14 @@ export default function Home() {
                         topic: post.topic,
                         communityId: post.communityId.toString(),
                         likeCount: parseInt(post.likeCount.toString(), 10),
-                        commentCount: parseInt(post.commentCount.toString(), 10)
+                        commentCount: parseInt(post.commentCount.toString(), 10),
+                        isActive: post.isActive // Añadir esta propiedad
                     };
                 })
             );
-
             // Sort posts by timestamp (newest first)
             postsParsed.sort((a, b) => b.timestamp - a.timestamp);
             setPosts(postsParsed);
-
             // Update topics based on selected community
             const community = communities.find(c => c.id === communityId);
             if (community) {
@@ -307,7 +319,6 @@ export default function Home() {
                 }));
                 setTopics(newTopics);
             }
-
         } catch (error) {
             console.error("Error fetching posts for community:", error);
         } finally {
