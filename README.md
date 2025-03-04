@@ -5,10 +5,15 @@
 **Node Speak** es una plataforma que redefine los foros en línea mediante el uso de **tecnología blockchain** y almacenamiento descentralizado. Diseñado para garantizar la **permanencia, transparencia y resistencia a la censura**, Node Speak permite a los usuarios:
 
 ✅ Crear y gestionar temas de discusión.  
+
 ✅ Seguir perfiles de interés.  
+
 ✅ Publicar mensajes y responder a otros participantes.  
+
 ✅ Valorar contenido mediante un sistema de likes.
+
 ✅ Asegurar la integridad de los datos con almacenamiento en **IPFS**.
+
 
 Gracias a su infraestructura descentralizada, **nadie puede eliminar o alterar el contenido de manera arbitraria**, brindando una experiencia **libre, comunitaria y segura**.
 
