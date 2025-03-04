@@ -7,7 +7,7 @@
 ✅ Crear y gestionar temas de discusión.  
 ✅ Seguir perfiles de interés.  
 ✅ Publicar mensajes y responder a otros participantes.  
-✅ Valorar contenido mediante un sistema basado en **NFTs**.  
+✅ Valorar contenido mediante un sistema de likes.
 ✅ Asegurar la integridad de los datos con almacenamiento en **IPFS**.
 
 Gracias a su infraestructura descentralizada, **nadie puede eliminar o alterar el contenido de manera arbitraria**, brindando una experiencia **libre, comunitaria y segura**.
@@ -27,8 +27,8 @@ Gracias a su infraestructura descentralizada, **nadie puede eliminar o alterar e
 
 ### 1️⃣ Clonar el Repositorio
 ```bash
-git clone https://github.com/NodeSpeak/forum.git
-cd forum
+git clone https://github.com/NodeSpeak/nodeSpeak.git
+cd NodeSpeak
 ```
 
 ### 2️⃣ Instalar Dependencias
@@ -64,7 +64,7 @@ Este proyecto está bajo la licencia **MIT**, lo que significa que puedes usarlo
 
 💬 Sigue el proyecto en **Twitter/X** para estar al tanto de las novedades.
 
-📧 Para consultas o soporte, envía un correo a: nodespeakapp@gmail.com
+📧 Para consultas o soporte, envía un correo a: support@nodespeak.xyz
 
 🌐 Visita nuestra web oficial: [nodespeak.io](https://nodespeak.xyz)
 
