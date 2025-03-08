@@ -543,7 +543,7 @@ export default function Home() {
         }
     };
 
-    // Modified function to create posts in communities
+    // function to create posts in communities
     const handleCreatePost = async (
         communityId: string, imageCID: string | null, textCID: string, topic: string, title: string) => {
         if (!provider) {
@@ -727,8 +727,6 @@ export default function Home() {
                             creatingCommunity={creatingCommunity}
                             joiningCommunityId={joiningCommunityId}
                             leavingCommunityId={leavingCommunityId}
-                            handleCreatePost={handleCreatePost}
-                            // refreshCommunities={refreshCommunities}
                         />
                     </main>
                 )}

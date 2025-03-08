@@ -4,8 +4,16 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Contract } from "ethers";
 import { useWalletContext } from "@/contexts/WalletContext";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, ImagePlus, Send } from "lucide-react";
 import DOMPurify from 'dompurify';
+import { TopicsDropdown } from "@/components/TopicsDropdown";
+import axios from "axios";
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Bold from '@tiptap/extension-bold';
+import Italic from '@tiptap/extension-italic';
+import Code from '@tiptap/extension-code';
+import Link from '@tiptap/extension-link';
 
 // Types
 interface Community {
@@ -43,15 +51,9 @@ interface Comment {
     isActive: boolean;
 }
 
-interface CreatePostProps {
-    onSubmit: (communityId: string, imageCID: string | null, textCID: string, topic: string, title: string) => Promise<void>;
-    isCreating: boolean;
-    setIsCreating: (value: boolean) => void;
-    topics: string[];
-    setTopics: (topics: string[]) => void;
-    communities: Community[];
-    selectedCommunityId: string | null;
-    onCommunitySelect: (communityId: string) => void;
+interface Topic {
+    id: number;
+    name: string;
 }
 
 interface IntegratedViewProps {
@@ -71,14 +73,84 @@ interface IntegratedViewProps {
     joiningCommunityId: string | null;
     leavingCommunityId: string | null;
     refreshCommunities?: () => Promise<void>;
-    // Props opcionales para el CreatePost component
+    fetchPostsForCommunity?: (communityId: string) => Promise<void>;
+
     isCreatingPost?: boolean;
     setIsCreatingPost?: (value: boolean) => void;
-    handleCreatePost?: (communityId: string, imageCID: string | null, textCID: string, topic: string, title: string) => Promise<void>;
-    topics?: string[];
-    setTopics?: (topics: string[]) => void;
-    CreatePost?: React.ComponentType<CreatePostProps>;
+    setIsCreating?: (value: boolean) => void;
 }
+
+// Rich Text Editor Component for Create Post
+const MatrixEditor = ({ content, setContent }: { content: string; setContent: React.Dispatch<React.SetStateAction<string>> }) => {
+    const editor = useEditor({
+        extensions: [
+            StarterKit,
+            Bold,
+            Italic,
+            Code,
+            Link.configure({
+                openOnClick: false,
+            }),
+        ],
+        content,
+        onUpdate: ({ editor }) => {
+            setContent(editor.getHTML());
+        },
+        editorProps: {
+            attributes: {
+                class: 'bg-black border-2 border-[var(--matrix-green)] text-white p-4 rounded focus:outline-none min-h-[150px] prose prose-invert prose-sm max-w-none',
+            },
+        },
+    });
+
+    if (!editor) {
+        return null;
+    }
+
+    return (
+        <div className="matrix-editor">
+            <div className="flex gap-2 mb-2 flex-wrap">
+                <button
+                    onClick={() => editor.chain().focus().toggleBold().run()}
+                    className={`px-2 py-1 text-xs border border-[var(--matrix-green)] rounded hover:bg-[var(--matrix-green)] hover:text-black ${editor.isActive('bold') ? 'bg-[var(--matrix-green)] text-black' : 'text-[var(--matrix-green)]'}`}
+                >
+                    Bold
+                </button>
+                <button
+                    onClick={() => editor.chain().focus().toggleItalic().run()}
+                    className={`px-2 py-1 text-xs border border-[var(--matrix-green)] rounded hover:bg-[var(--matrix-green)] hover:text-black ${editor.isActive('italic') ? 'bg-[var(--matrix-green)] text-black' : 'text-[var(--matrix-green)]'}`}
+                >
+                    Italic
+                </button>
+                <button
+                    onClick={() => editor.chain().focus().toggleCode().run()}
+                    className={`px-2 py-1 text-xs border border-[var(--matrix-green)] rounded hover:bg-[var(--matrix-green)] hover:text-black ${editor.isActive('code') ? 'bg-[var(--matrix-green)] text-black' : 'text-[var(--matrix-green)]'}`}
+                >
+                    Code
+                </button>
+                <button
+                    onClick={() => {
+                        const url = window.prompt('URL');
+                        if (url) {
+                            editor.chain().focus().setLink({ href: url }).run();
+                        }
+                    }}
+                    className={`px-2 py-1 text-xs border border-[var(--matrix-green)] rounded hover:bg-[var(--matrix-green)] hover:text-black ${editor.isActive('link') ? 'bg-[var(--matrix-green)] text-black' : 'text-[var(--matrix-green)]'}`}
+                >
+                    Link
+                </button>
+                <button
+                    onClick={() => editor.chain().focus().unsetLink().run()}
+                    className={`px-2 py-1 text-xs border border-[var(--matrix-green)] rounded hover:bg-[var(--matrix-green)] hover:text-black`}
+                    disabled={!editor.isActive('link')}
+                >
+                    Unlink
+                </button>
+            </div>
+            <EditorContent editor={editor} />
+        </div>
+    );
+};
 
 // Formatted Content Component
 const FormattedContent = ({ htmlContent }: { htmlContent: string }) => {
@@ -111,22 +183,19 @@ export const IntegratedView = ({
     joiningCommunityId,
     leavingCommunityId,
     refreshCommunities,
-    // Props para el CreatePost
-    isCreatingPost = false,
-    setIsCreatingPost = () => {},
-    handleCreatePost,
-    topics = [],
-    setTopics = () => {},
-    CreatePost
+    fetchPostsForCommunity,
+    isCreatingPost: externalIsCreatingPost,
+    setIsCreatingPost: externalSetIsCreatingPost,
+    setIsCreating: externalSetIsCreating
 }: IntegratedViewProps) => {
     const { isConnected, provider: walletProvider } = useWalletContext();
-    
+
     // State for both components
     const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
     const [showCommunityList, setShowCommunityList] = useState(true);
     const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
     const [localCommunities, setLocalCommunities] = useState<Community[]>(communities);
-    
+
     // Posts states
     const [hasLoaded, setHasLoaded] = useState(false);
     const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
@@ -135,12 +204,23 @@ export const IntegratedView = ({
     const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
     const [submittingComment, setSubmittingComment] = useState<Record<string, boolean>>({});
     const [likingPost, setLikingPost] = useState<Record<string, boolean>>({});
-    
+
     // Communities states
     const [newTopic, setNewTopic] = useState("");
     const [isSubmittingTopic, setIsSubmittingTopic] = useState(false);
     const [topicError, setTopicError] = useState("");
     const [showAddTopicForm, setShowAddTopicForm] = useState<Record<string, boolean>>({});
+
+    // CreatePost states - use external state if provided, otherwise use internal state
+    const [internalIsCreatingPost, setInternalIsCreatingPost] = useState(false);
+    const isCreatingPost = externalIsCreatingPost !== undefined ? externalIsCreatingPost : internalIsCreatingPost;
+    const setIsCreatingPost = externalSetIsCreatingPost || setInternalIsCreatingPost;
+
+    const [newPost, setNewPost] = useState("<p>Write your post here...</p>");
+    const [selectedImage, setSelectedImage] = useState<File | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [communityTopics, setCommunityTopics] = useState<Topic[]>([]);
+    const [postSelectedTopic, setPostSelectedTopic] = useState<string>("");
 
     // Update local communities when prop changes
     useEffect(() => {
@@ -161,6 +241,185 @@ export const IntegratedView = ({
         }
     }, [hasLoaded, fetchPostsFromContract]);
 
+    // Actualizar los tópicos disponibles cuando cambia la comunidad seleccionada para CreatePost
+    useEffect(() => {
+        if (selectedCommunityId) {
+            const community = communities.find(c => c.id === selectedCommunityId);
+            if (community) {
+                const availableTopics = community.topics.map((name, index) => ({
+                    id: index,
+                    name
+                }));
+                setCommunityTopics(availableTopics);
+            }
+        }
+    }, [selectedCommunityId, communities]);
+
+    // CreatePost functions
+    const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            setSelectedImage(file);
+        }
+    };
+
+    const handleTopicChange = (topic: string) => {
+        setPostSelectedTopic(topic);
+    };
+
+    const handleCommunityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedCommunityId(e.target.value);
+        // Reset the selected topic when community changes
+        setPostSelectedTopic("");
+    };
+
+    async function pinFileToIPFS(file: File) {
+        try {
+            const url = "https://api.pinata.cloud/pinning/pinFileToIPFS";
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const pinataMetadata = JSON.stringify({ name: file.name || "uploaded-file" });
+            formData.append("pinataMetadata", pinataMetadata);
+
+            const res = await axios.post(url, formData, {
+                maxBodyLength: Infinity,
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                    pinata_api_key: "f8f064ba07b90906907d",
+                    pinata_secret_api_key: "4cf373c7ce0a77b1e7c26bcbc0ba2996cde5f3b508522459e7ff46afa507be08",
+                },
+            });
+
+            return res.data.IpfsHash as string;
+        } catch (err) {
+            console.error("Error uploading file to Pinata:", err);
+            throw err;
+        }
+    }
+
+    const handleCreatePost = async (communityId: string, imageCID: string | null, textCID: string, topic: string, title: string) => {
+        if (!provider) {
+            alert("No Ethereum provider connected.");
+            return;
+        }
+        try {
+            const signer = await provider.getSigner();
+            const contract = new Contract(forumAddress, forumABI, signer);
+            // First, check if the user is a member of the community
+            try {
+                const userAddress = await signer.getAddress();
+                // Verify if the user is the creator or member
+                const community = communities.find(c => c.id === communityId);
+                const isCreatorOrMember = community?.isCreator || community?.isMember;
+
+                // If there's no info in the state, verify directly in the contract
+                if (!isCreatorOrMember) {
+                    const isMember = await contract.isMember(communityId, userAddress);
+                    if (!isMember) {
+                        alert("You must be a member of this community to create a post. Please join the community first.");
+                        return;
+                    }
+                }
+
+                // Attempt to estimate gas first to catch potential errors
+                await contract.createPost.estimateGas(
+                    communityId,
+                    title, // Post title
+                    textCID,
+                    imageCID ?? "",
+                    topic
+                );
+
+                // If estimation succeeds, proceed with the transaction
+                const tx = await contract.createPost(
+                    communityId,
+                    title,
+                    textCID,
+                    imageCID ?? "",
+                    topic
+                );
+
+                await tx.wait();
+
+                // Refresh posts for the community
+                if (fetchPostsForCommunity) {
+                    fetchPostsForCommunity(communityId);
+                } else {
+                    fetchPostsFromContract();
+                }
+
+                setIsCreatingPost(false);
+            } catch (estimateError: any) {
+                console.error("Gas estimation error:", estimateError);
+                if (estimateError.message) {
+                    alert(`Cannot create post: ${estimateError.message}`);
+                } else {
+                    alert("Error creating post. The transaction would fail.");
+                }
+            }
+        } catch (error: any) {
+            console.error("Error sending post to contract:", error);
+            // Try to provide a more specific error message
+            let errorMessage = "Error creating post. Check the console for details.";
+            if (error.message) {
+                // Check if there's a specific contract error we can display
+                if (error.message.includes("not a member")) {
+                    errorMessage = "You must be a member of this community to create a post.";
+                } else if (error.message.includes("cooldown")) {
+                    errorMessage = "Please wait before creating another post. Cooldown period is active.";
+                }
+            }
+            alert(errorMessage);
+        }
+    };
+
+    const handleSubmitPost = async () => {
+        // Validate content
+        const tempElement = document.createElement('div');
+        tempElement.innerHTML = newPost;
+        const textContent = tempElement.textContent || tempElement.innerText || '';
+
+        if (!textContent.trim()) {
+            alert("Enter content for your post");
+            return;
+        }
+        if (!postSelectedTopic) {
+            alert("Select a topic");
+            return;
+        }
+        if (!selectedCommunityId) {
+            alert("Select a community");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            let imageCid: string | null = null;
+
+            if (selectedImage) {
+                console.log("Uploading image to Pinata...");
+                imageCid = await pinFileToIPFS(selectedImage);
+                console.log("Image uploaded with CID:", imageCid);
+            }
+
+            console.log("Uploading text to Pinata...");
+            const textBlob = new Blob([newPost], { type: "text/html" });
+            const textFile = new File([textBlob], "post.html", { type: "text/html" });
+            const textCid = await pinFileToIPFS(textFile);
+            console.log("Text uploaded with CID:", textCid);
+
+
+            await handleCreatePost(selectedCommunityId, imageCid, textCid, postSelectedTopic, "No title");
+            setIsCreatingPost(false);
+        } catch (error) {
+            console.error("Error in upload process:", error);
+            alert("Error uploading files to Pinata.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Filter posts based on selected community and topic
     const filteredPosts = useMemo(() => {
         // First, filter posts by communities the user is a member of or creator of
@@ -168,17 +427,17 @@ export const IntegratedView = ({
         const userCommunities = localCommunities
             .filter(c => c.isMember || c.isCreator)
             .map(c => c.id);
-            
+
         return posts.filter((post) => {
             // If a community is selected, filter by that community
             // Otherwise, only show posts from communities the user is a member of
-            const matchesCommunity = selectedCommunityId 
-                ? post.communityId === selectedCommunityId 
+            const matchesCommunity = selectedCommunityId
+                ? post.communityId === selectedCommunityId
                 : userCommunities.includes(post.communityId);
-            
+
             // Filter by topic if selected
             const matchesTopic = selectedTopic ? post.topic === selectedTopic : true;
-            
+
             return matchesCommunity && matchesTopic;
         });
     }, [posts, selectedCommunityId, selectedTopic, localCommunities]);
@@ -186,7 +445,7 @@ export const IntegratedView = ({
     // Get all available topics from current posts 
     const availableTopics = useMemo(() => {
         const topicSet = new Set<string>();
-        
+
         // If a community is selected, use its topics
         if (selectedCommunityId) {
             const selectedCommunity = localCommunities.find(c => c.id === selectedCommunityId);
@@ -199,7 +458,7 @@ export const IntegratedView = ({
                 if (post.topic) topicSet.add(post.topic);
             });
         }
-        
+
         return Array.from(topicSet);
     }, [posts, selectedCommunityId, localCommunities]);
 
@@ -236,10 +495,10 @@ export const IntegratedView = ({
 
             const signer = await walletProvider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
-            
+
             const tx = await contract.addTopicToCommunity(communityId, newTopic);
             console.log("Add topic transaction submitted:", tx.hash);
-            
+
             const receipt = await tx.wait();
             console.log("Add topic transaction confirmed:", receipt);
 
@@ -292,18 +551,18 @@ export const IntegratedView = ({
     const handleCommunityClick = (community: Community) => {
         setSelectedCommunityId(community.id);
         setSelectedTopic(null); // Reset topic filter
-        
+
         // Only switch to posts view if user is a member or creator
         if (community.isMember || community.isCreator) {
             setShowCommunityList(false);
         }
     };
-    
+
     // Handle topic pill click in the community list
     const handleTopicClick = (e: React.MouseEvent, topic: string) => {
         e.stopPropagation(); // Prevent community selection
         setSelectedTopic(topic);
-        
+
         // If user is a member of any community, navigate to posts view
         const userIsMember = localCommunities.some(c => c.isMember || c.isCreator);
         if (userIsMember) {
@@ -390,7 +649,7 @@ export const IntegratedView = ({
 
             const signer = await walletProvider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
-            
+
             const tx = await contract.addComment(postId, newCommentText[postId]);
             const receipt = await tx.wait();
 
@@ -430,7 +689,7 @@ export const IntegratedView = ({
 
             const signer = await walletProvider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
-            
+
             const tx = await contract.likePost(postId);
             await tx.wait();
 
@@ -472,6 +731,107 @@ export const IntegratedView = ({
         if (!address) return "";
         return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
     };
+
+    // Render Create Post Form
+    const renderCreatePostForm = () => (
+        <div className="border-2 border-[var(--matrix-green)] rounded-lg p-6 bg-black">
+            <h2 className="text-xl font-mono mb-4 text-center text-[var(--matrix-green)]">
+                Create New Post
+            </h2>
+            <div className="space-y-4">
+                {/* Community Selector */}
+                <div className="flex flex-col">
+                    <label className="text-[var(--matrix-green)] mb-1">Community</label>
+                    <select
+                        value={selectedCommunityId || ""}
+                        onChange={handleCommunityChange}
+                        className="bg-black border-2 border-[var(--matrix-green)] text-white p-2 rounded w-full"
+                    >
+                        <option value="" disabled>Select a community</option>
+                        {communities.map(community => (
+                            <option
+                                key={community.id}
+                                value={community.id}
+                                disabled={!community.isMember && !community.isCreator}
+                            >
+                                {community.name} {community.isMember || community.isCreator ? "" : "(Join first)"}
+                            </option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">You can only create posts in communities you have joined.</p>
+                </div>
+
+                {/* Topic Selector */}
+                {selectedCommunityId && (
+                    <div className="flex flex-col">
+                        <label className="text-[var(--matrix-green)] mb-1">Topic</label>
+                        <TopicsDropdown
+                            onTopicSelect={handleTopicChange}
+                            topics={communityTopics}
+                            setTopics={() => { }} // We're not adding topics here
+                            disableAddingTopics={true}
+                            selectedTopic={postSelectedTopic}
+                        />
+                    </div>
+                )}
+
+                {/* Post Content - Rich Text Editor */}
+                <div className="flex flex-col">
+                    <label className="text-[var(--matrix-green)] mb-1">Content</label>
+                    <MatrixEditor content={newPost} setContent={setNewPost} />
+                </div>
+
+                {/* Image Selector */}
+                <div className="flex flex-col">
+                    <label className="text-[var(--matrix-green)] mb-1 flex items-center">
+                        <span>Image</span>
+                        <span className="ml-2 cursor-pointer">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageSelect}
+                                className="hidden"
+                                id="image-upload"
+                            />
+                            <label htmlFor="image-upload">
+                                <ImagePlus className="h-4 w-4 hover:text-[var(--matrix-green)]" />
+                            </label>
+                        </span>
+                    </label>
+                    {selectedImage && (
+                        <div className="mt-1 text-xs text-[var(--matrix-green)] p-2 border border-dashed border-[var(--matrix-green)] rounded">
+                            {selectedImage.name}
+                        </div>
+                    )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-between items-center pt-2">
+                    <Button
+                        onClick={() => setIsCreatingPost(false)}
+                        className="bg-transparent border-2 border-[var(--matrix-green)] text-[var(--matrix-green)] hover:bg-[var(--matrix-green)] hover:text-black"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleSubmitPost}
+                        className="bg-[var(--matrix-green)] text-black hover:bg-opacity-80"
+                        disabled={loading || !postSelectedTopic || !selectedCommunityId}
+                    >
+                        {loading ? (
+                            <div className="flex items-center">
+                                <span className="mr-2 animate-pulse">Publishing...</span>
+                            </div>
+                        ) : (
+                            <>
+                                Publish <Send className="h-3 w-3 ml-1" />
+                            </>
+                        )}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
 
     // Render Create Community Form
     const renderCreateCommunityForm = () => (
@@ -548,11 +908,10 @@ export const IntegratedView = ({
                     localCommunities.map((community) => (
                         <div
                             key={community.id}
-                            className={`border-2 rounded-lg p-4 flex flex-col bg-black cursor-pointer transition-all ${
-                                selectedCommunityId === community.id
+                            className={`border-2 rounded-lg p-4 flex flex-col bg-black cursor-pointer transition-all ${selectedCommunityId === community.id
                                     ? "border-[var(--matrix-green)] border-4"
                                     : "border-[var(--matrix-green)] hover:border-opacity-80"
-                            }`}
+                                }`}
                             onClick={() => handleCommunityClick(community)}
                         >
                             <div className="flex justify-between items-start mb-3">
@@ -583,9 +942,8 @@ export const IntegratedView = ({
                                     {community.isCreator && (
                                         <button
                                             onClick={(e) => toggleAddTopicForm(community.id, e)}
-                                            className={`text-xs py-1 px-2 border w-24 ${
-                                                showAddTopicForm[community.id] ? 'bg-[rgba(0,255,0,0.1)]' : 'bg-transparent'
-                                            } border-[var(--matrix-green)] text-[var(--matrix-green)] hover:bg-[rgba(0,255,0,0.1)] rounded flex items-center justify-center transition-colors`}
+                                            className={`text-xs py-1 px-2 border w-24 ${showAddTopicForm[community.id] ? 'bg-[rgba(0,255,0,0.1)]' : 'bg-transparent'
+                                                } border-[var(--matrix-green)] text-[var(--matrix-green)] hover:bg-[rgba(0,255,0,0.1)] rounded flex items-center justify-center transition-colors`}
                                         >
                                             {showAddTopicForm[community.id] ? "Cancel" : "Add Topic"}
                                         </button>
@@ -606,12 +964,11 @@ export const IntegratedView = ({
                             </div>
 
                             {/* Add Topic Form */}
-                            <div 
-                                className={`mb-3 border border-[var(--matrix-green)]/30 rounded overflow-hidden transition-all duration-300 ${
-                                    showAddTopicForm[community.id] 
-                                        ? 'max-h-24 opacity-100 p-2' 
+                            <div
+                                className={`mb-3 border border-[var(--matrix-green)]/30 rounded overflow-hidden transition-all duration-300 ${showAddTopicForm[community.id]
+                                        ? 'max-h-24 opacity-100 p-2'
                                         : 'max-h-0 opacity-0 p-0'
-                                }`} 
+                                    }`}
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 {showAddTopicForm[community.id] && (
@@ -633,7 +990,7 @@ export const IntegratedView = ({
                                                 {isSubmittingTopic ? "Adding..." : "Add"}
                                             </button>
                                         </div>
-                                        
+
                                         {topicError && (
                                             <div className="text-red-500 text-xs mb-1">
                                                 {topicError}
@@ -669,13 +1026,12 @@ export const IntegratedView = ({
                                                 handleJoinCommunity(community.id);
                                             }
                                         }}
-                                        className={`px-3 py-1 rounded text-sm font-medium ${
-                                            joiningCommunityId === community.id || leavingCommunityId === community.id
+                                        className={`px-3 py-1 rounded text-sm font-medium ${joiningCommunityId === community.id || leavingCommunityId === community.id
                                                 ? "bg-gray-600 text-white"
                                                 : community.isMember
                                                     ? "bg-red-800 hover:bg-red-700 text-white"
                                                     : "bg-[var(--matrix-green)] hover:bg-opacity-80 text-black"
-                                        }`}
+                                            }`}
                                         disabled={joiningCommunityId === community.id || leavingCommunityId === community.id}
                                     >
                                         {joiningCommunityId === community.id ? (
@@ -704,35 +1060,33 @@ export const IntegratedView = ({
             <div className="mb-4 p-3 border border-[var(--matrix-green)]/50 rounded bg-black/80">
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="text-[var(--matrix-green)]">Filter by topic:</span>
-                    
+
                     {/* Show all option */}
-                    <button 
+                    <button
                         onClick={() => setSelectedTopic(null)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                            selectedTopic === null 
-                                ? "bg-[var(--matrix-green)] text-black" 
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedTopic === null
+                                ? "bg-[var(--matrix-green)] text-black"
                                 : "bg-[var(--matrix-green)]/20 text-[var(--matrix-green)] border border-[var(--matrix-green)]"
-                        }`}
+                            }`}
                     >
                         All
                     </button>
-                    
+
                     {/* Topic pills */}
                     {availableTopics.map((topic) => (
                         <button
                             key={topic}
                             onClick={() => setSelectedTopic(topic)}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                                selectedTopic === topic 
-                                    ? "bg-[var(--matrix-green)] text-black" 
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedTopic === topic
+                                    ? "bg-[var(--matrix-green)] text-black"
                                     : "bg-[var(--matrix-green)]/20 text-[var(--matrix-green)] border border-[var(--matrix-green)]"
-                            }`}
+                                }`}
                         >
                             {topic}
                         </button>
                     ))}
                 </div>
-                
+
                 {/* Community info and back button */}
                 <div className="flex items-center justify-between">
                     <span className="text-white text-sm">
@@ -748,7 +1102,7 @@ export const IntegratedView = ({
                             </>
                         )}
                     </span>
-                    <button 
+                    <button
                         onClick={toggleView}
                         className="text-[var(--matrix-green)] text-xs border border-[var(--matrix-green)] px-2 py-1 rounded hover:bg-[var(--matrix-green)]/10"
                     >
@@ -756,19 +1110,19 @@ export const IntegratedView = ({
                     </button>
                 </div>
             </div>
-            
+
             {filteredPosts.length === 0 ? (
                 <div className="p-6 text-center border border-[var(--matrix-green)]/30 rounded-lg bg-black">
                     <p className="text-[var(--matrix-green)] mb-2">No posts found with the current filters.</p>
                     <p className="text-gray-400 text-sm">
-                        {selectedTopic 
-                            ? `There are no posts with the topic "${selectedTopic}".` 
-                            : selectedCommunityId 
-                                ? "This community doesn't have any posts yet." 
+                        {selectedTopic
+                            ? `There are no posts with the topic "${selectedTopic}".`
+                            : selectedCommunityId
+                                ? "This community doesn't have any posts yet."
                                 : "None of your communities have posts yet."}
                     </p>
                     {selectedCommunityId && (
-                        <Button 
+                        <Button
                             className="mt-4 bg-[var(--matrix-green)]/20 text-[var(--matrix-green)] hover:bg-[var(--matrix-green)]/30 border border-[var(--matrix-green)]"
                             onClick={() => setSelectedTopic(null)}
                         >
@@ -892,8 +1246,6 @@ export const IntegratedView = ({
                     </div>
                 ))
             )}
-            
-            {/* No back button here anymore since it's now in the filter bar */}
         </div>
     );
 
@@ -906,15 +1258,15 @@ export const IntegratedView = ({
         <div className="terminal-window p-6 rounded-lg">
             {/* Title always at top */}
             <h1 className="text-2xl font-mono text-center text-[var(--matrix-green)] mb-2">
-                {isCreatingCommunity 
-                    ? "Create New Community" 
-                    : isCreatingPost && CreatePost
+                {isCreatingCommunity
+                    ? "Create New Community"
+                    : isCreatingPost
                         ? "Create New Post"
-                        : showCommunityList 
-                            ? "Communities" 
+                        : showCommunityList
+                            ? "Communities"
                             : `Posts ${selectedTopic ? `- Topic: ${selectedTopic}` : ""}`}
             </h1>
-            
+
             {/* Navigation buttons */}
             <div className="flex items-center justify-between mb-4 pb-2">
                 <div className="flex gap-2">
@@ -930,27 +1282,27 @@ export const IntegratedView = ({
                         </Button>
                     )}
                 </div>
-                
+
                 {/* Right side buttons */}
                 <div className="flex gap-2">
-                        {/* Create/Cancel community button - Only in Communities view */}
+                    {/* Create/Cancel community button - Only in Communities view */}
                     {showCommunityList && (
                         <Button
                             onClick={() => setIsCreatingCommunity(!isCreatingCommunity)}
-                            className={`${isCreatingCommunity 
-                                ? "bg-red-800 hover:bg-red-700 text-white" 
+                            className={`${isCreatingCommunity
+                                ? "bg-red-800 hover:bg-red-700 text-white"
                                 : "bg-[var(--matrix-green)] text-black hover:bg-opacity-80"}`}
                         >
                             {isCreatingCommunity ? "Cancel" : "Create Community"}
                         </Button>
                     )}
-                    
-                    {/* Create/Cancel post button - Only in Posts view if CreatePost exists */}
+
+                    {/* Create/Cancel post button - Only in Posts view */}
                     {!showCommunityList && !isCreatingCommunity && (
                         <Button
                             onClick={() => setIsCreatingPost(!isCreatingPost)}
-                            className={`${isCreatingPost 
-                                ? "bg-red-800 hover:bg-red-700 text-white" 
+                            className={`${isCreatingPost
+                                ? "bg-red-800 hover:bg-red-700 text-white"
                                 : "bg-[var(--matrix-green)] text-black hover:bg-opacity-80"}`}
                         >
                             {isCreatingPost ? "Cancel" : "Create Post"}
@@ -963,24 +1315,7 @@ export const IntegratedView = ({
             {isCreatingCommunity ? (
                 renderCreateCommunityForm()
             ) : isCreatingPost ? (
-                CreatePost ? (
-                    <CreatePost
-                        onSubmit={handleCreatePost!}
-                        isCreating={isCreatingPost}
-                        setIsCreating={setIsCreatingPost}
-                        topics={topics || []}
-                        setTopics={setTopics}
-                        communities={communities}
-                        selectedCommunityId={selectedCommunityId}
-                        onCommunitySelect={handleSelectCommunity}
-                    />
-                ) : (
-                    <div className="border-2 border-[var(--matrix-green)] rounded-lg p-6 bg-black">
-                        <p className="text-center text-[var(--matrix-green)]">
-                            Error: CreatePost component is not available. Please add it to the props.
-                        </p>
-                    </div>
-                )
+                renderCreatePostForm()
             ) : showCommunityList ? (
                 renderCommunitiesList()
             ) : (
@@ -988,4 +1323,4 @@ export const IntegratedView = ({
             )}
         </div>
     );
-};
+}
