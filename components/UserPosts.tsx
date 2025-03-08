@@ -293,7 +293,6 @@ export const UserPosts = ({
                 >
                     <div className="flex justify-between items-start mb-2">
                         <div>
-                            <h3 className="text-lg text-[var(--matrix-green)]">{post.title || "Post #" + post.id}</h3>
                             <div className="flex items-center space-x-2 text-xs text-[var(--matrix-green)]/70">
                                 <span>{formatDate(post.timestamp)}</span>
                                 <span>•</span>

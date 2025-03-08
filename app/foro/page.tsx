@@ -12,6 +12,7 @@ import { ethers, Contract } from "ethers";
 import { useWalletContext } from "@/contexts/WalletContext";
 import axios from 'axios';
 import { forumAddress, forumABI } from "@/contracts/DecentralizedForum_Commuties";
+import { IntegratedView } from '@/components/IntegratedView';
 
 // Use a cached IPFS gateway to reduce rate limiting issues
 const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
@@ -74,52 +75,52 @@ export default function Home() {
     // Helper function to fetch IPFS content with caching and fallback
     const fetchFromIPFS = async (cid: any, useCache = true) => {
         if (!cid) return null;
-        
+
         // Si ya está en caché, devolver el valor
         if (useCache && contentCache.has(cid)) {
-          return contentCache.get(cid);
+            return contentCache.get(cid);
         }
-        
+
         // Lista de gateways IPFS para probar
         const gateways = [
-          PINATA_GATEWAY,
-          BACKUP_GATEWAY,
-          "https://ipfs.io/ipfs/",
-          "https://cloudflare-ipfs.com/ipfs/",
-          "https://dweb.link/ipfs/"
+            PINATA_GATEWAY,
+            BACKUP_GATEWAY,
+            "https://ipfs.io/ipfs/",
+            "https://cloudflare-ipfs.com/ipfs/",
+            "https://dweb.link/ipfs/"
         ];
-        
+
         // Intentar con cada gateway
         for (const gateway of gateways) {
-          try {
-            const response = await axios.get(`${gateway}${cid}`, {
-              timeout: 5000, // Timeout de 5 segundos
-              validateStatus: (status) => status === 200 // Solo aceptar 200 OK
-            });
-            
-            const { data } = response;
-            // Guardar en caché si se obtuvo correctamente
-            contentCache.set(cid, data);
-            return data;
-          } catch (error) {
-            // Si hay error, loguear y probar con la siguiente gateway
-            if (error instanceof Error) {
-                console.warn(`Failed to fetch from ${gateway} for CID ${cid}:`, error.message || 'Unknown error');
-            } else {
-                console.warn(`Failed to fetch from ${gateway} for CID ${cid}: Unknown error`);
+            try {
+                const response = await axios.get(`${gateway}${cid}`, {
+                    timeout: 5000, // Timeout de 5 segundos
+                    validateStatus: (status) => status === 200 // Solo aceptar 200 OK
+                });
+
+                const { data } = response;
+                // Guardar en caché si se obtuvo correctamente
+                contentCache.set(cid, data);
+                return data;
+            } catch (error) {
+                // Si hay error, loguear y probar con la siguiente gateway
+                if (error instanceof Error) {
+                    console.warn(`Failed to fetch from ${gateway} for CID ${cid}:`, error.message || 'Unknown error');
+                } else {
+                    console.warn(`Failed to fetch from ${gateway} for CID ${cid}: Unknown error`);
+                }
+                // Continuar al siguiente gateway
             }
-            // Continuar al siguiente gateway
-          }
         }
-        
+
         // Si todos los intentos fallan, devolver un valor por defecto
         console.error(`Failed to fetch content for CID ${cid} from all gateways`);
-        
+
         // Cachear un valor por defecto para evitar intentos repetidos
         const defaultContent = "Content unavailable";
         contentCache.set(cid, defaultContent);
         return defaultContent;
-      };
+    };
 
     // Get communities from contract
     const fetchCommunities = async () => {
@@ -664,7 +665,7 @@ export default function Home() {
                 {isConnected && (
                     <main className="space-y-6">
                         {/* Navigation between communities and creation */}
-                        <div className="flex justify-between items-center">
+                        {/* <div className="flex justify-between items-center">
                             <div className="flex space-x-4">
                                 <Button
                                     onClick={() => setShowCommunityList(true)}
@@ -701,7 +702,7 @@ export default function Home() {
                                     {isCreating ? "Cancel" : "Create Post"}
                                 </Button>
                             )}
-                        </div>
+                        </div> */}
 
                         {/* Loading indicator */}
                         {isLoading && (
@@ -710,60 +711,25 @@ export default function Home() {
                             </div>
                         )}
 
-                        {/* Communities view */}
-                        {showCommunityList && !isLoading && (
-                            <Communities
-                                communities={communities}
-                                isCreatingCommunity={isCreatingCommunity}
-                                setIsCreatingCommunity={setIsCreatingCommunity}
-                                selectedCommunityId={selectedCommunityId}
-                                handleSelectCommunity={handleSelectCommunity}
-                                handleCreateCommunity={handleCreateCommunity}
-                                handleJoinCommunity={handleJoinCommunity}
-                                handleLeaveCommunity={handleLeaveCommunity}
-                                isLoading={isLoading}
-                                creatingCommunity={creatingCommunity}
-                                joiningCommunityId={joiningCommunityId}
-                                leavingCommunityId={leavingCommunityId}
-                                setShowCommunityList={setShowCommunityList}
-                            />
-                        )}
-
-                        {/* Posts view */}
-                        {!showCommunityList && !isLoading && (
-                            <>
-                                {isCreating ? (
-                                    <CreatePost
-                                        onSubmit={handleCreatePost}
-                                        isCreating={isCreating}
-                                        setIsCreating={setIsCreating}
-                                        topics={topics}
-                                        setTopics={setTopics}
-                                        communities={communities}
-                                        selectedCommunityId={selectedCommunityId}
-                                        onCommunitySelect={handleSelectCommunity}
-                                    />
-                                ) : (
-                                    <div className="terminal-window">
-                                        {selectedCommunityId && (
-                                            <div className="p-4 border-b border-[var(--matrix-green)]">
-                                                <h2 className="text-lg font-mono text-[var(--matrix-green)]">
-                                                    {communities.find(c => c.id === selectedCommunityId)?.name || `Community #${selectedCommunityId}`}
-                                                </h2>
-                                            </div>
-                                        )}
-                                        <UserPosts
-                                            fetchPostsFromContract={fetchPostsFromContract}
-                                            posts={posts}
-                                            communities={communities}
-                                            forumAddress={forumAddress}
-                                            forumABI={forumABI}
-                                            provider={provider}
-                                        />
-                                    </div>
-                                )}
-                            </>
-                        )}
+                        <IntegratedView
+                            communities={communities}
+                            posts={posts}
+                            fetchPostsFromContract={fetchPostsFromContract}
+                            forumAddress={forumAddress}
+                            forumABI={forumABI}
+                            provider={provider}
+                            isCreatingCommunity={isCreatingCommunity}
+                            setIsCreatingCommunity={setIsCreatingCommunity}
+                            handleCreateCommunity={handleCreateCommunity}
+                            handleJoinCommunity={handleJoinCommunity}
+                            handleLeaveCommunity={handleLeaveCommunity}
+                            isLoading={isLoading}
+                            creatingCommunity={creatingCommunity}
+                            joiningCommunityId={joiningCommunityId}
+                            leavingCommunityId={leavingCommunityId}
+                            handleCreatePost={handleCreatePost}
+                            // refreshCommunities={refreshCommunities}
+                        />
                     </main>
                 )}
             </div>
