@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Contract } from "ethers";
 import { useWalletContext } from "@/contexts/WalletContext";
@@ -225,6 +225,8 @@ export const IntegratedView = ({
     const [communityTopics, setCommunityTopics] = useState<Topic[]>([]);
     const [postSelectedTopic, setPostSelectedTopic] = useState<string>("");
 
+    const topicInputRef = useRef<HTMLInputElement>(null);
+
     // Update local communities when prop changes
     useEffect(() => {
         setLocalCommunities(communities);
@@ -265,16 +267,28 @@ export const IntegratedView = ({
     // Actualizar los tópicos disponibles cuando cambia la comunidad seleccionada para CreatePost
     useEffect(() => {
         if (selectedCommunityId) {
-            const community = communities.find(c => c.id === selectedCommunityId);
+            // Primero buscar en localCommunities (que tiene las actualizaciones más recientes)
+            let community = localCommunities.find(c => c.id === selectedCommunityId);
+
+            // Si no se encuentra en localCommunities, buscar en communities (prop)
+            if (!community) {
+                community = communities.find(c => c.id === selectedCommunityId);
+            }
+
             if (community) {
                 const availableTopics = community.topics.map((name, index) => ({
                     id: index,
                     name
                 }));
+
                 setCommunityTopics(availableTopics);
+                console.log(`Updated ${availableTopics.length} topics for selected community ${selectedCommunityId}`);
             }
+        } else {
+            // Limpiar los topics si no hay comunidad seleccionada
+            setCommunityTopics([]);
         }
-    }, [selectedCommunityId, communities]);
+    }, [selectedCommunityId, communities, localCommunities]);
 
 
     useEffect(() => {
@@ -300,13 +314,28 @@ export const IntegratedView = ({
 
     const handleCommunityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const communityId = e.target.value;
-        // Actualizar el ID de comunidad seleccionada, lo que activará el useEffect
+
+        // Actualizar el ID de comunidad seleccionada
         setSelectedCommunityId(communityId);
-        // Reset the selected topic when community changes
+
+        // Resetear el topic seleccionado
         setPostSelectedTopic("");
 
-        // Ya no necesitamos llamar a fetchPostsForCommunity aquí
-        // porque el useEffect se encargará de eso
+        // Cargar inmediatamente los topics actualizados de la comunidad
+        if (communityId) {
+            const selectedCommunity = communities.find(c => c.id === communityId);
+            if (selectedCommunity) {
+                const availableTopics = selectedCommunity.topics.map((name, index) => ({
+                    id: index,
+                    name
+                }));
+                setCommunityTopics(availableTopics);
+                console.log(`Loaded ${availableTopics.length} topics for community ${communityId}`);
+            }
+        } else {
+            // Si no hay comunidad seleccionada, limpiar los topics
+            setCommunityTopics([]);
+        }
     };
 
     async function pinFileToIPFS(file: File) {
@@ -547,9 +576,9 @@ export const IntegratedView = ({
             const receipt = await tx.wait();
             console.log("Add topic transaction confirmed:", receipt);
 
-            // Update locally first
-            setLocalCommunities(prevCommunities =>
-                prevCommunities.map(community => {
+            // Update localCommunities first
+            setLocalCommunities(prevCommunities => {
+                const updatedCommunities = prevCommunities.map(community => {
                     if (community.id === communityId) {
                         return {
                             ...community,
@@ -558,8 +587,22 @@ export const IntegratedView = ({
                         };
                     }
                     return community;
-                })
-            );
+                });
+
+                // Actualizar también communityTopics si el ID de comunidad actual coincide
+                if (selectedCommunityId === communityId) {
+                    const currentCommunity = updatedCommunities.find(c => c.id === communityId);
+                    if (currentCommunity) {
+                        // Actualizar los tópicos disponibles con los topics actualizados
+                        setCommunityTopics(currentCommunity.topics.map((name, index) => ({
+                            id: index,
+                            name
+                        })));
+                    }
+                }
+
+                return updatedCommunities;
+            });
 
             // Clean up
             setNewTopic("");
@@ -567,6 +610,9 @@ export const IntegratedView = ({
                 ...prev,
                 [communityId]: false
             }));
+
+            // Opcional: mostrar algún mensaje de éxito
+            console.log(`Topic "${newTopic}" added successfully to community ${communityId}`);
 
             // Refresh from backend if available
             if (refreshCommunities) {
@@ -584,13 +630,31 @@ export const IntegratedView = ({
     // Toggle add topic form visibility
     const toggleAddTopicForm = (communityId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        setShowAddTopicForm(prev => ({
-            ...prev,
-            [communityId]: !prev[communityId]
-        }));
+
+        // Alternar el estado del formulario
+        setShowAddTopicForm(prev => {
+            const newState = {
+                ...prev,
+                [communityId]: !prev[communityId]
+            };
+
+            // Si estamos abriendo el formulario, programar el foco para después del render
+            if (newState[communityId]) {
+                // Usar setTimeout para asegurar que el input esté renderizado
+                setTimeout(() => {
+                    if (topicInputRef.current) {
+                        topicInputRef.current.focus();
+                    }
+                }, 50);
+            }
+
+            return newState;
+        });
+
         setNewTopic("");
         setTopicError("");
     };
+
 
     // Community related functions
     const handleCommunityClick = (community: Community) => {
@@ -622,41 +686,77 @@ export const IntegratedView = ({
 
     // Post/Comment related functions
     const toggleComments = async (postId: string) => {
-        // If comments are already expanded, just toggle visibility
+        console.log(`Toggling comments for post ${postId}`);
+
+        // Si los comentarios ya están expandidos, solo alternar visibilidad
         if (expandedComments[postId]) {
-            setExpandedComments({
-                ...expandedComments,
-                [postId]: !expandedComments[postId]
-            });
+            console.log(`Comments already loaded for post ${postId}, toggling visibility`);
+            setExpandedComments(prev => ({
+                ...prev,
+                [postId]: !prev[postId]
+            }));
             return;
         }
 
-        // If comments aren't loaded yet, fetch them
-        if (!comments[postId]) {
-            await fetchCommentsForPost(postId);
-        }
+        console.log(`Loading comments for post ${postId} for the first time`);
 
-        // Set expanded state to true
-        setExpandedComments({
-            ...expandedComments,
-            [postId]: true
-        });
+        // Si los comentarios no están cargados o expandidos, cargarlos
+        try {
+            // Cargar los comentarios
+            await fetchCommentsForPost(postId);
+
+            // Establecer como expandidos
+            setExpandedComments(prev => ({
+                ...prev,
+                [postId]: true
+            }));
+
+            // Refrescar los posts si es necesario para actualizar el contador de comentarios
+            const post = posts.find(p => p.id === postId);
+            if (post && comments[postId] && post.commentCount !== comments[postId].length) {
+                console.log(`Comment count mismatch for post ${postId}. Refreshing posts...`);
+
+                if (selectedCommunityId && fetchPostsForCommunity) {
+                    await fetchPostsForCommunity(selectedCommunityId);
+                } else {
+                    await fetchPostsFromContract();
+                }
+            }
+        } catch (error) {
+            console.error(`Error toggling comments for post ${postId}:`, error);
+        }
     };
 
     const fetchCommentsForPost = async (postId: string) => {
+        console.log(`Fetching comments for post ${postId}`);
+
+        // Verificar si ya estamos cargando comentarios para este post
+        if (loadingComments[postId]) {
+            console.log(`Already loading comments for post ${postId}, skipping`);
+            return;
+        }
+
         const currentProvider = provider || walletProvider;
-        if (loadingComments[postId] || !currentProvider) return;
+        if (!currentProvider) {
+            console.error("No provider available to fetch comments");
+            return;
+        }
 
         try {
-            setLoadingComments({
-                ...loadingComments,
+            // Marcar como cargando
+            setLoadingComments(prev => ({
+                ...prev,
                 [postId]: true
-            });
+            }));
+
+            console.log(`Starting contract call to get comments for post ${postId}`);
 
             const contract = new Contract(forumAddress, forumABI, currentProvider);
             const commentsFromContract = await contract.getComments(postId);
 
-            // Parse comments
+            console.log(`Received ${commentsFromContract.length} comments from contract for post ${postId}`);
+
+            // Filtrar solo comentarios activos y parsear datos
             const parsedComments = commentsFromContract
                 .filter((comment: any) => comment.isActive)
                 .map((comment: any) => ({
@@ -668,58 +768,84 @@ export const IntegratedView = ({
                     isActive: comment.isActive
                 }));
 
-            // Sort by newest first
+            // Ordenar por más recientes primero
             parsedComments.sort((a: Comment, b: Comment) => b.timestamp - a.timestamp);
 
-            setComments({
-                ...comments,
+            console.log(`Processed ${parsedComments.length} active comments for post ${postId}`);
+
+            // Actualizar el estado
+            setComments(prev => ({
+                ...prev,
                 [postId]: parsedComments
-            });
+            }));
+
+            return parsedComments;
         } catch (error) {
             console.error(`Error fetching comments for post ${postId}:`, error);
+            return [];
         } finally {
-            setLoadingComments({
-                ...loadingComments,
+            // Marcar como no cargando
+            setLoadingComments(prev => ({
+                ...prev,
                 [postId]: false
-            });
+            }));
         }
     };
 
     const addComment = async (postId: string) => {
         if (!newCommentText[postId]?.trim() || !isConnected || !walletProvider) {
-            alert("Please connect your wallet to comment");
+            alert("Please enter a comment and connect your wallet");
             return;
         }
 
         try {
-            setSubmittingComment({
-                ...submittingComment,
+            setSubmittingComment(prev => ({
+                ...prev,
                 [postId]: true
-            });
+            }));
 
             const signer = await walletProvider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
 
+            console.log(`Adding comment to post ${postId}: "${newCommentText[postId]}"`);
+
             const tx = await contract.addComment(postId, newCommentText[postId]);
+            console.log("Comment transaction submitted:", tx.hash);
+
             const receipt = await tx.wait();
+            console.log("Comment transaction confirmed:", receipt);
 
-            // Clear input
-            setNewCommentText({
-                ...newCommentText,
+            // Limpiar el input de comentario
+            setNewCommentText(prev => ({
+                ...prev,
                 [postId]: ""
-            });
+            }));
 
-            // Refresh comments and posts
+            // Primero refrescar los comentarios de este post específico
             await fetchCommentsForPost(postId);
-            await fetchPostsFromContract();
+
+            // Luego refrescar los posts para actualizar el contador de comentarios
+            if (selectedCommunityId && fetchPostsForCommunity) {
+                await fetchPostsForCommunity(selectedCommunityId);
+            } else {
+                await fetchPostsFromContract();
+            }
+
+            console.log(`Comment added to post ${postId} successfully and data refreshed.`);
+
+            // Asegurar que los comentarios permanezcan visibles
+            setExpandedComments(prev => ({
+                ...prev,
+                [postId]: true
+            }));
         } catch (error) {
             console.error("Error adding comment:", error);
             alert("Failed to add comment. Make sure your wallet is connected and you have enough gas.");
         } finally {
-            setSubmittingComment({
-                ...submittingComment,
+            setSubmittingComment(prev => ({
+                ...prev,
                 [postId]: false
-            });
+            }));
         }
     };
 
@@ -732,10 +858,10 @@ export const IntegratedView = ({
         if (likingPost[postId]) return;
 
         try {
-            setLikingPost({
-                ...likingPost,
+            setLikingPost(prev => ({
+                ...prev,
                 [postId]: true
-            });
+            }));
 
             const signer = await walletProvider.getSigner();
             const contract = new Contract(forumAddress, forumABI, signer);
@@ -743,8 +869,16 @@ export const IntegratedView = ({
             const tx = await contract.likePost(postId);
             await tx.wait();
 
-            // Refresh posts data
-            await fetchPostsFromContract();
+            // Usar la función adecuada para refrescar los posts
+            if (selectedCommunityId && fetchPostsForCommunity) {
+                // Si tenemos un ID de comunidad y la función específica, usarla
+                await fetchPostsForCommunity(selectedCommunityId);
+            } else {
+                // De lo contrario, usar la función general
+                await fetchPostsFromContract();
+            }
+
+            console.log(`Post ${postId} liked successfully. Posts refreshed.`);
         } catch (error) {
             console.error("Error liking post:", error);
             if (error instanceof Error && error.toString().includes("already liked")) {
@@ -753,10 +887,10 @@ export const IntegratedView = ({
                 alert("Failed to like post. Make sure your wallet is connected and you have enough gas.");
             }
         } finally {
-            setLikingPost({
-                ...likingPost,
+            setLikingPost(prev => ({
+                ...prev,
                 [postId]: false
-            });
+            }));
         }
     };
 
@@ -1036,6 +1170,7 @@ export const IntegratedView = ({
                                             <div className="flex mb-2">
                                                 <input
                                                     type="text"
+                                                    ref={topicInputRef}
                                                     value={newTopic}
                                                     onChange={(e) => setNewTopic(e.target.value)}
                                                     placeholder="Enter new topic name"

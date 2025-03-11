@@ -1,9 +1,10 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Github, X, Mail } from "lucide-react";
 import { WalletConnect } from "@/components/WalletConnect";
 import { useWalletContext } from "@/contexts/WalletContext";
 import { useRouter } from 'next/navigation';
+import siteConfig from "@/config";
 
 function MatrixRain() {
     return (
@@ -15,19 +16,36 @@ function MatrixRain() {
 
 function TypingEffect({ text }: { text: string }) {
     const [displayedText, setDisplayedText] = useState("");
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
-        let i = 0;
-        const interval = setInterval(() => {
-            if (i < text.length) {
-                setDisplayedText((prev) => prev + text.charAt(i));
-                i++;
-            } else {
-                clearInterval(interval);
-            }
-        }, 50);
+        // Función para agregar caracteres uno por uno
+        const typeText = (currentIndex: number) => {
+            if (currentIndex <= text.length) {
+                setDisplayedText(text.substring(0, currentIndex));
 
-        return () => clearInterval(interval);
+                // Programar el siguiente carácter
+                timeoutRef.current = setTimeout(() => {
+                    typeText(currentIndex + 1);
+                }, 50);
+            }
+        };
+
+        // Limpiar timeout previo y estado
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        setDisplayedText("");
+
+        // Iniciar el efecto de escritura
+        typeText(0);
+
+        // Limpiar al desmontar o cuando cambie el texto
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
     }, [text]);
 
     return (
@@ -69,8 +87,8 @@ function Landing() {
 
             <div className="container mx-auto p-4 relative z-10">
                 <header className="mb-8 flex justify-between items-center">
-                    <h1 className="text-2xl font-mono text-[var(--matrix-green)]">Node Speak v2.0</h1>
-                        <WalletConnect />
+                    <h1 className="text-2xl font-mono text-[var(--matrix-green)]">{siteConfig.name}</h1>
+                    <WalletConnect />
                 </header>
 
                 <main className="container mx-auto px-6 relative z-10 mt-8">
@@ -87,7 +105,7 @@ function Landing() {
                             </p>
                             <div className="space-y-4 pl-4">
                                 <h1 className="text-3xl font-bold text-[var(--matrix-green)] animate-pulse">
-                                    Welcome to NodeSpeak v2.0 - (Testnet Sepolia)
+                                    Welcome to {siteConfig.name} - (Testnet Sepolia)
                                 </h1>
                                 <p className="text-[var(--matrix-green)] mt-4">
                                     <TypingEffect text="Initializing decentralized communication protocol..." />

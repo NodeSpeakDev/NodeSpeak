@@ -8,9 +8,11 @@ import { useWalletContext } from "@/contexts/WalletContext";
 import axios from 'axios';
 import { forumAddress, forumABI } from "@/contracts/DecentralizedForum_Commuties";
 import { IntegratedView } from '@/components/IntegratedView';
+import siteConfig from '@/config';
+
 
 // Use a cached IPFS gateway to reduce rate limiting issues
-const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+const PINATA_GATEWAY = "https://ipfs.io/ipfs/";
 // Add a backup gateway
 const BACKUP_GATEWAY = "https://ipfs.io/ipfs/";
 
@@ -565,7 +567,7 @@ export default function Home() {
             <div className="container mx-auto p-4 relative z-10">
                 <header className="mb-8">
                     <div className="flex justify-between items-start">
-                        <h1 className="text-2xl font-mono">Node Speak v2.0</h1>
+                        <h1 className="text-2xl font-mono">{siteConfig.name}</h1>
                         <div className="flex flex-col items-end space-y-2">
                             <WalletConnect />
                             <SystemStatus />
