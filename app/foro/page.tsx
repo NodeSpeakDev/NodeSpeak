@@ -1,12 +1,7 @@
 "use client";
 import { MatrixRain } from '@/components/MatrixRain';
-import { TerminalPrompt } from '@/components/TerminalPrompt';
 import { WalletConnect } from '@/components/WalletConnect';
 import { SystemStatus } from '@/components/SystemStatus';
-import { UserPosts } from '@/components/UserPosts';
-import { CreatePost } from '@/components/CreatePost';
-import { Communities } from '@/components/Communities';
-import { Button } from "@/components/ui/button";
 import { useState, useEffect, useMemo } from "react";
 import { ethers, Contract } from "ethers";
 import { useWalletContext } from "@/contexts/WalletContext";
@@ -543,90 +538,6 @@ export default function Home() {
         }
     };
 
-    // function to create posts in communities
-    const handleCreatePost = async (
-        communityId: string, imageCID: string | null, textCID: string, topic: string, title: string) => {
-        if (!provider) {
-            alert("No Ethereum provider connected.");
-            return;
-        }
-
-        try {
-            const signer = await provider.getSigner();
-            const contract = new Contract(forumAddress, forumABI, signer);
-
-            // First, check if the user is a member of the community
-            try {
-                const userAddress = await signer.getAddress();
-
-                // Verificar si el usuario es el creador o miembro
-                const community = communities.find(c => c.id === communityId);
-                const isCreatorOrMember = community?.isCreator || community?.isMember;
-
-                // Si no hay información en el estado, verificar directamente en el contrato
-                if (!isCreatorOrMember) {
-                    const isMember = await contract.isMember(communityId, userAddress);
-
-                    if (!isMember) {
-                        alert("You must be a member of this community to create a post. Please join the community first.");
-                        return;
-                    }
-                }
-
-                // Attempt to estimate gas first to catch potential errors
-                await contract.createPost.estimateGas(
-                    communityId,
-                    title, // Post title
-                    textCID,
-                    imageCID ?? "",
-                    topic
-                );
-
-                // If estimation succeeds, proceed with the transaction
-                const tx = await contract.createPost(
-                    communityId,
-                    title,
-                    textCID,
-                    imageCID ?? "",
-                    topic
-                );
-
-                await tx.wait();
-
-                fetchPostsForCommunity(communityId);
-                setIsCreating(false);
-            } catch (estimateError: any) {
-                console.error("Gas estimation error:", estimateError);
-                if (estimateError.message) {
-                    alert(`Cannot create post: ${estimateError.message}`);
-                } else {
-                    alert("Error creating post. The transaction would fail.");
-                }
-            }
-        } catch (error: any) {
-            console.error("Error sending post to contract:", error);
-
-            // Try to provide a more specific error message
-            let errorMessage = "Error creating post. Check the console for details.";
-            if (error.message) {
-                // Check if there's a specific contract error we can display
-                if (error.message.includes("not a member")) {
-                    errorMessage = "You must be a member of this community to create a post.";
-                } else if (error.message.includes("cooldown")) {
-                    errorMessage = "Please wait before creating another post. Cooldown period is active.";
-                }
-            }
-
-            alert(errorMessage);
-        }
-    };
-
-    // Select a community
-    const handleSelectCommunity = (communityId: string) => {
-        setSelectedCommunityId(communityId);
-        fetchPostsForCommunity(communityId);
-    };
-
     useEffect(() => {
         const loadUserData = async () => {
             if (provider) {
@@ -727,6 +638,9 @@ export default function Home() {
                             creatingCommunity={creatingCommunity}
                             joiningCommunityId={joiningCommunityId}
                             leavingCommunityId={leavingCommunityId}
+                            selectedCommunityId={selectedCommunityId}
+                            setSelectedCommunityId={setSelectedCommunityId}
+                            fetchPostsForCommunity={fetchPostsForCommunity}
                         />
                     </main>
                 )}
