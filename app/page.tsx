@@ -138,14 +138,14 @@ function Landing() {
                             <span>nodespeak</span>
                         </a>
                         <a
-                            href="https://twitter.com/NodeSpeak_"
+                            href="https://twitter.com/NodeSpeak"
                             className="flex items-center space-x-2 text-[var(--matrix-green)]/80 hover:text-[var(--matrix-green)] 
                             hover:shadow-[0_0_10px_rgba(0,255,0,0.3)] transition-all duration-300"
                             target="_blank"
                             rel="noopener noreferrer"
                         >
                             <X className="w-5 h-5" />
-                            <span>@NodeSpeak_</span>
+                            <span>@NodeSpeak</span>
                         </a>
                         <a
                             href="mailto:support@nodespeak.xyz"
